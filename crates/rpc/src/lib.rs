@@ -1,14 +1,10 @@
-pub fn add(left: u64, right: u64) -> u64 {
-    left + right
-}
+use axum::{routing::post, Json, Router};
+use serde_json::Value;
+use engine::capabilities::exchange_capabilities;
+use eth::{
+    block::get_block_by_number, 
+    client::{chain_id, syncing}
+};
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
-    }
-}
+mod engine;
+mod utils;
