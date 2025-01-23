@@ -16,7 +16,7 @@ impl Into<RpcErrorMetadata> for RpcErr {
     }
 }
 
-
+#[derive(Debug, Serialize, Deserialize)]
 pub struct RpcErrorMetadata {
     code: i32,
     message: String
@@ -30,7 +30,7 @@ pub struct RpcRequest {
     pub params: Option<Value>,
 }
 
-#[derive(, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct RpcSuccessResponse {
     pub id: i32,
     pub jsonrpc: String,

@@ -1,0 +1,7 @@
+[package]
+name = "reec"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+rpc = { path = "../crates/rpc"}

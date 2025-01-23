@@ -5,7 +5,8 @@ members = [
     "crates/rpc",
     "crates/consensus",
     "crates/net",
-    "crates/evm",
+    "crates/evm", 
+    "reec",
 ]
 resolver = "2"
 
