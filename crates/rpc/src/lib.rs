@@ -1,5 +1,6 @@
 use axum::{routing::post, Json, Router};
 use serde_json::Value;
+use tracing::info;
 use engine::capabilities::exchange_capabilities;
 use eth::{
     block::get_block_by_number, 
@@ -13,9 +14,10 @@ mod eth;
 
 #[tokio::main]
 pub async fn start_api() {
-    tracing_subscriber::fmt::init();
     let app = Router::new().route("/", post(handle_request));
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:8551").await.unwrap();
+    let url = "0.0.0.0:8551";
+    let listener = tokio::net::TcpListener::bind(url).await.unwrap();
+    info!("RPC Server listening on: {}", url);
     axum::serve(listener, app).await.unwrap();
 }
 

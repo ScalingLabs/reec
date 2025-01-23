@@ -681,6 +681,8 @@ name = "reec"
 version = "0.1.0"
 dependencies = [
  "rpc",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]

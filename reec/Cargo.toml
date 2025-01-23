@@ -4,4 +4,6 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
-rpc = { path = "../crates/rpc"}
+rpc.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
