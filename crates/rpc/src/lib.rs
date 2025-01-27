@@ -20,11 +20,15 @@ pub async fn start_api(http_addr: &str, http_port: &str, authrpc_addr: &str, aut
     let http_url = create_url(http_addr, http_port);
     let http_listener = TcpListener::bind(&http_url).await.unwrap();
     let http_server = axum::serve(http_listener, http_router).with_graceful_shutdown(shutdown_signal()).into_future();
+    info!("HTTP Server listening on {}", http_url);
 
     let authrpc_router = Router::new().route("/", post(handle_authrpc_request));
     let authrpc_url = create_url(authrpc_addr, authrpc_port);
-    let authrpc_listener = TcpListener::bind(authrpc_url).await.unwrap();
+    let authrpc_listener = TcpListener::bind(&authrpc_url).await.unwrap();
     let authrpc_server = axum::serve(authrpc_listener, authrpc_router).with_graceful_shutdown(shutdown_signal()).into_future();
+    info!("AuthRPC Server listening on {}", authrpc_url);
+
+    info!("Servers started successfully. Press Ctrl+C to stop.");
 
     let res = tokio::try_join!(http_server, authrpc_server);
     match res {

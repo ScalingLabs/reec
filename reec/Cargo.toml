@@ -4,6 +4,7 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+clap = { version = "4.5.27", features = ["cargo"] }
 rpc.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
