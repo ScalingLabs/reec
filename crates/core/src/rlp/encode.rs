@@ -254,3 +254,46 @@ impl RLPEncode for ethereum_types::Signature {
         self.as_bytes().encode(buf);
     }
 }
+
+
+#[cfg(test)]
+mod test {
+    use std::net::IpAddr;
+    use ethereum_types::Address;
+    use hex_literal::hex;
+    use super::RLPEncode;
+
+    #[test]
+    fn can_encode_booleans() {
+        let mut encoded = Vec::new();
+        true.encode(&mut encoded);
+        assert_eq!(encoded, vec![0x01]);
+
+        let mut encoded = Vec::new();
+        false.encode(&mut encoded);
+        assert_eq!(encoded, vec![0x80]);
+    }
+
+    #[test]
+    fn can_encode_u8() {
+        let mut encoded = Vec::new();
+        0u8.encode(&mut encoded);
+        assert_eq!(encoded, vec![0x80]);
+
+        let mut encoded = Vec::new();
+        1u8.encode(&mut encoded);
+        assert_eq!(encoded, vec![0x01]);
+
+        let mut encoded = Vec::new();
+        0x7fu8.encode(&mut encoded);
+        assert_eq!(encoded, vec![0x7f]);
+
+        let mut encoded = Vec::new();
+        0x80u8.encode(&mut encoded);
+        assert_eq!(encoded, vec![0x80 + 1, 0x80]);
+
+        let mut encoded = Vec::new();
+        0x90u8.encode(&mut encoded);
+        assert_eq!(encoded, vec![0x80 + 1, 0x90]);
+    }
+}
