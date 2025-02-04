@@ -212,3 +212,45 @@ impl RLPEncode for IpAddr {
         }
     }
 }
+
+impl RLPEncode for ethereum_types::H32 {
+    fn encode(&self, buf: &mut dyn BufMut) {
+        self.as_bytes().encode(buf)
+    }
+}
+
+impl RLPEncode for ethereum_types::H64 {
+    fn encode(&self, buf: &mut dyn BufMut) {
+        self.as_bytes().encode(buf);
+    }
+}
+
+impl RLPEncode for ethereum_types::H128 {
+    fn encode(&self, buf: &mut dyn BufMut) {
+        self.as_bytes().encode(buf);
+    }
+}
+
+impl RLPEncode for ethereum_types::H256 {
+    fn encode(&self, buf: &mut dyn BufMut) {
+        self.as_bytes().encode(buf);
+    }
+}
+
+impl RLPEncode for ethereum_types::H512 {
+    fn encode(&self, buf: &mut dyn BufMut) {
+        self.as_bytes().encode(buf);
+    }
+}
+
+impl RLPEncode for ethereum_types::Address {
+    fn encode(&self, buf: &mut dyn BufMut) {
+        self.as_bytes().encode(buf);
+    }
+}
+
+impl RLPEncode for ethereum_types::Signature {
+    fn encode(&self, buf: &mut dyn BufMut) {
+        self.as_bytes().encode(buf);
+    }
+}
