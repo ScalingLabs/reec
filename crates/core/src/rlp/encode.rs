@@ -296,4 +296,96 @@ mod test {
         0x90u8.encode(&mut encoded);
         assert_eq!(encoded, vec![0x80 + 1, 0x90]);
     }
+
+    #[test]
+    fn can_encode_u16() {
+        let mut encoded = Vec::new();
+        0u16.encode(&mut encoded);
+        assert_eq!(encoded, vec![0x80]);
+
+        let mut encoded = Vec::new();
+        1u16.encode(&mut encoded);
+        assert_eq!(encoded, vec![0x01]);
+
+        let mut encoded = Vec::new();
+        0x7fu16.encode(&mut encoded);
+        assert_eq!(encoded, vec![0x7f]);
+
+        let mut encoded = Vec::new();
+        0x80u16.encode(&mut encoded);
+        assert_eq!(encoded, vec![0x80 + 1, 0x80]);
+
+        let mut encoded = Vec::new();
+        0x90u16.encode(&mut encoded);
+        assert_eq!(encoded, vec![0x80 + 1, 0x90]);
+    }
+
+    #[test]
+    fn can_encode_u32() {
+        let mut encoded = Vec::new();
+        0u16.encode(&mut encoded);
+        assert_eq!(encoded, vec![0x80]);
+
+        let mut encoded = Vec::new();
+        1u16.encode(&mut encoded);
+        assert_eq!(encoded, vec![0x01]);
+
+        let mut encoded = Vec::new();
+        0x7fu16.encode(&mut encoded);
+        assert_eq!(encoded, vec![0x7f]);
+
+        let mut encoded = Vec::new();
+        0x80u16.encode(&mut encoded);
+        assert_eq!(encoded, vec![0x80 + 1, 0x80]);
+
+        let mut encoded = Vec::new();
+        0x90u16.encode(&mut encoded);
+        assert_eq!(encoded, vec![0x80 + 1, 0x90]);
+    }
+
+    #[test]
+    fn can_encode_u64() {
+        let mut encoded = Vec::new();
+        0u8.encode(&mut encoded);
+        assert_eq!(encoded, vec![0x80]);
+
+        let mut encoded = Vec::new();
+        1u8.encode(&mut encoded);
+        assert_eq!(encoded, vec![0x01]);
+
+        let mut encoded = Vec::new();
+        0x7fu8.encode(&mut encoded);
+        assert_eq!(encoded, vec![0x7f]);
+
+        let mut encoded = Vec::new();
+        0x80u8.encode(&mut encoded);
+        assert_eq!(encoded, vec![0x80 + 1, 0x80]);
+
+        let mut encoded = Vec::new();
+        0x90u8.encode(&mut encoded);
+        assert_eq!(encoded, vec![0x80 + 1, 0x90]);
+    }
+
+    #[test]
+    fn can_encode_usize() {
+        let mut encoded = Vec::new();
+        0u8.encode(&mut encoded);
+        assert_eq!(encoded, vec![0x80]);
+
+        let mut encoded = Vec::new();
+        1u8.encode(&mut encoded);
+        assert_eq!(encoded, vec![0x01]);
+
+        let mut encoded = Vec::new();
+        0x7fu8.encode(&mut encoded);
+        assert_eq!(encoded, vec![0x7f]);
+
+        let mut encoded = Vec::new();
+        0x80u8.encode(&mut encoded);
+        assert_eq!(encoded, vec![0x80 + 1, 0x80]);
+
+        let mut encoded = Vec::new();
+        0x90u8.encode(&mut encoded);
+        assert_eq!(encoded, vec![0x80 + 1, 0x90]);
+    }
 }
