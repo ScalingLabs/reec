@@ -388,4 +388,103 @@ mod test {
         0x90u8.encode(&mut encoded);
         assert_eq!(encoded, vec![0x80 + 1, 0x90]);
     }
+
+    #[test]
+    fn can_encode_bytes() {
+        let message: [u8; 1] = [0x00];
+        let encoded = {
+            let mut buf = vec![];
+            message.encode(&mut buf);
+            buf
+        };
+        assert_eq!(encoded, [0x00]);
+
+        let message: [u8; 1] = [0x0f];
+        let encoded = {
+            let mut buf = vec![];
+            message.encode(&mut buf);
+            buf
+        };
+        assert_eq!(encoded, [0x0f]);
+
+        let message: [u8; 2] = [0x04, 0x00];
+        let encoded = {
+            let mut buf = vec![];
+            message.encode(&mut buf);
+            buf
+        };
+        assert_eq!(encoded, [0x82, 0x04, 0x00])
+    }
+
+    #[test]
+    fn can_encode_strings() {
+        let message = "cat";
+        let encoded = {
+            let mut buf = vec![];
+            message.encode(&mut buf);
+            buf
+        };
+        let expected:[u8; 4] = [0x83, b'c', b'a', b't']; 
+        assert_eq!(encoded, expected);
+    }
+
+    #[test]
+    fn can_encode_list_of_strings() {
+        let message = vec!["dog", "cat"];
+        let encoded = {
+            let mut buf = vec![];
+            message.encode(&mut buf);
+            buf
+        };
+
+        let expected:[u8; 9] = [0xc8, 0x83, b'd', b'o', b'g', 0x83, b'c', b'a', b't'];
+        assert_eq!(encoded, expected);
+
+        let message: Vec<&str> = vec![];
+        let encoded = {
+            let mut buf = vec![];
+            message.encode(&mut buf);
+            buf
+        };
+        let expected: [u8; 1] = [0xc0]; 
+        assert_eq!(encoded, expected);
+    }
+
+    #[test]
+    fn can_encode_ip() {
+        let message = "192.168.0.1";
+        let ip: IpAddr = message.parse().unwrap();
+        let encoded = {
+            let mut buf = vec![];
+            ip.encode(&mut buf);
+            buf
+        };
+
+        let expected:[u8; 5] = [0x84, 192, 168, 0, 1];
+        assert_eq!(encoded, expected);
+
+        let message = "2001:0000:130F:0000:0000:09C0:876A:130B";
+        let ip: IpAddr = message.parse().unwrap();
+        let encoded = {
+            let mut buf = vec![];
+            ip.encode(&mut buf);
+            buf
+        };
+        let expected: [u8; 17] = [0x90, 0x20, 0x01, 0x00, 0x00, 0x13, 0x0f, 0x00, 0x00, 0x00, 0x00, 0x09, 0xc0, 0x87,
+        0x6a, 0x13, 0x0b];
+        assert_eq!(encoded, expected)
+    }
+
+    #[test]
+    fn can_encode_addresses() {
+        let address = Address::from(hex!("ef2d6d194084c2de36e0dabfce45d046b37d1106"));
+        let encoded = {
+            let mut buf = vec![];
+            address.encode(&mut buf);
+            buf
+        };
+
+        let expected = hex!("94ef2d6d194084c2de36e0dabfce45d046b37d1106");
+        assert_eq!(encoded, expected);
+    }
 }
