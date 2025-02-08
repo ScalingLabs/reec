@@ -76,14 +76,14 @@ where E: Into<RpcErrorMetadata>
 {
     match res {
         Ok(result) => Json(
-            serde_json::to_value(&RpcSuccessResponse {
+            serde_json::to_value(RpcSuccessResponse {
                 id: req.id,
                 jsonrpc: "2.0".to_string(),
-                result: result,
+                result,
             }).unwrap(),
         ),
         Err(error) => Json(
-            serde_json::to_value(&RpcErrorResponse {
+            serde_json::to_value(RpcErrorResponse {
                 id: req.id,
                 jsonrpc: "2.0".to_string(),
                 error: error.into(),
