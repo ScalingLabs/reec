@@ -18,3 +18,46 @@ pub fn init_db(path: Option<impl AsRef<Path>>) -> Database {
     let path = path.map(|p| p.as_ref().to_path_buf());
     Database::create(path, &tables).unwrap()
 } 
+
+
+#[cfg(test)]
+mod tests {
+    use libmdbx::{
+        orm::{table, Database, Encodable, Decodable},
+        table_info
+    };
+
+    use crate::Example;
+
+    #[test]
+    fn mdbx_smoke_test() {
+        // Declare tables used for the smoke test
+        table!(
+            /// Example table
+            ( Example ) String => String
+        );
+
+        // Assemble database chart
+        let tables = [table_info!(Example)].into_iter().collect();
+        let key = "Hello".to_string();
+        let value = "World".to_string();
+
+        let db = Database::create(None, &tables).unwrap();
+
+        // Write values
+        {
+            let txn = db.begin_readwrite().unwrap();
+            txn.upsert::<Example>(key.clone(), value.clone()).unwrap();
+            txn.commit().unwrap();
+        }
+        // Read written values
+        
+        let read_value = {
+            let txn = db.begin_read().unwrap();
+            txn.get::<Example>(key).unwrap()
+        };
+        assert_eq!(read_value, Some(value));
+        
+
+    }
+}
