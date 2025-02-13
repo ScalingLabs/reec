@@ -67,7 +67,7 @@ impl RLPEncode for u32 {
     fn encode(&self, buf: &mut dyn BufMut) {
         match *self {
             0 => buf.put_u8(0x80),
-            n @ 1..0x7f => buf.put_u8(n as u8),
+            n @ 1..=0x7f => buf.put_u8(n as u8),
             n => {
                 let mut bytes = ArrayVec::<[u8; 8]>::new();
                 bytes.extend_from_slice(&n.to_be_bytes());
@@ -84,7 +84,7 @@ impl RLPEncode for u64 {
     fn encode(&self, buf: &mut dyn BufMut) {
         match *self {
             0 => buf.put_u8(0x80),
-            n @ 1..0x7f => buf.put_u8(n as u8),
+            n @ 1..=0x7f => buf.put_u8(n as u8),
             n => {
                 let mut bytes = ArrayVec::<[u8; 8]>::new();
                 bytes.extend_from_slice(&n.to_be_bytes());
