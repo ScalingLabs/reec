@@ -1,12 +1,17 @@
-build: cargo buld --workspace
+build:
+  cargo build --workspace
 
-test-all: cargo test --workspace
+test-all: 
+  cargo test --workspace
 
-test crate: cargo test -p {{crate}}
+test crate: 
+  cargo test -p {{crate}}
 
-clean: cargo clean
+clean: 
+  cargo clean
 
 run_image: build_image
-  docker run --rm -p 127.0.0.1:8545 reec --http.addr 0.0.0.0
+  docker run --rm -p 127.0.0.1:8545:8545 reec --http.addr 0.0.0.0
 
-build_image: docker build -t reec .
+build_image: 
+  docker build -t reec .
