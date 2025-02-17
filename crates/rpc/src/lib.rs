@@ -1,18 +1,17 @@
 use std::future::IntoFuture;
-use axum::{routing::post, Json, Router};
+use axum::{middleware::map_request, routing::post, Json, Router};
 use serde_json::Value;
 use tracing::info;
 use tokio::net::TcpListener;
-use engine::capabilities::exchange_capabilities;
-use eth::{
-    block::get_block_by_number, 
-    client::{chain_id, syncing}
-};
+
+use engine::ExchangeCapabilitiesRequest;
+use eth::{block, client::{self, chain_id}};
 use utils::{RpcErr, RpcErrorMetadata, RpcErrorResponse, RpcRequest, RpcSuccessResponse};
 
 mod engine;
 mod utils;
 mod eth;
+mod admin;
 
 #[tokio::main]
 pub async fn start_api(http_addr: &str, http_port: &str, authrpc_addr: &str, authrpc_port: &str) {
@@ -48,43 +47,65 @@ fn create_url(addr: &str, port: &str) -> String {
 
 pub async fn handle_http_request(body: String) -> Json<Value> {
     let req: RpcRequest = serde_json::from_str(&body).unwrap();
-
     let res: Result<Value, RpcErr> = match req.method.as_str() {
-        "engine_exchangeCapabilities" => exchange_capabilities(),
-        "eth_chainId" => chain_id(),
-        "eth_syncing" => syncing(),
-        "eth_getBlockByNumber" => get_block_by_number(),
+        "eth_chainId" => client::chain_id(),
+        "eth_syncing" => client::syncing(),
+        "eth_getBlockByNumber" => block::get_block_by_number(),
+        "admin_nodeInfo" => admin::node_info(),
         _ => Err(RpcErr::MethodNotFound),
     };
-
-    rpc_response(req, res)
+    rpc_response(req.id, res)
 }
 
 pub async fn handle_authrpc_request(body: String) -> Json<Value>{
     let req: RpcRequest = serde_json::from_str(&body).unwrap();
 
-    let res: Result<Value, RpcErr> = match req.method.as_str() {
-        "engine_exchangeCapabilities" => exchange_capabilities(),
-        _ => Err(RpcErr::MethodNotFound)
-    };
-
-    rpc_response(req, res)
+    let res = map_requests(&req);
+    rpc_response(req.id, res)
 }
 
-fn rpc_response<E>(req: RpcRequest, res: Result<Value, E>) -> Json<Value>
+pub fn map_requests(req: &RpcRequest) -> Result<Value, RpcErr> {
+    match req.method.as_str() {
+        "engine_exchangeCapabilities" => {
+            let capabilities: ExchangeCapabilitiesRequest = req
+                .params.as_ref()
+                .ok_or(RpcErr::BadParams)?
+                .first()
+                .ok_or(RpcErr::BadParams).
+                and_then(|v| serde_json::from_value(v.clone()).map_err(|_| RpcErr::BadParams))?;
+            engine::exchange_capabilities(&capabilities)
+        }
+        "eth_chaiId" => client::chain_id(),
+        "eth_syncing" => client::syncing(),
+        "eth_getBlockByNumber" => block::get_block_by_number(),
+        "engine_forkchoiceUpdatedV3" => engine::forkchoice_Updated_V3(),
+        "engine_newPayloadV3" => {
+            let block = req
+                .params
+                .as_ref()
+                .ok_or(RpcErr::BadParams)?
+                .first()
+                .ok_or(RpcErr::BadParams)?;
+        engine::new_payload_v3(block)
+        }
+        _ => Err(RpcErr::MethodNotFound)
+    }
+}
+
+fn rpc_response<E>(id: i32, res: Result<Value, E>) -> Json<Value>
 where E: Into<RpcErrorMetadata>
 {
     match res {
         Ok(result) => Json(
             serde_json::to_value(RpcSuccessResponse {
-                id: req.id,
+                id,
                 jsonrpc: "2.0".to_string(),
                 result,
             }).unwrap(),
         ),
         Err(error) => Json(
             serde_json::to_value(RpcErrorResponse {
-                id: req.id,
+                id,
                 jsonrpc: "2.0".to_string(),
                 error: error.into(),
             }).unwrap(),
