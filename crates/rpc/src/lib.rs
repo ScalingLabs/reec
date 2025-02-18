@@ -75,7 +75,7 @@ pub fn map_requests(req: &RpcRequest) -> Result<Value, RpcErr> {
                 and_then(|v| serde_json::from_value(v.clone()).map_err(|_| RpcErr::BadParams))?;
             engine::exchange_capabilities(&capabilities)
         }
-        "eth_chaiId" => client::chain_id(),
+        "eth_chainId" => client::chain_id(),
         "eth_syncing" => client::syncing(),
         "eth_getBlockByNumber" => block::get_block_by_number(),
         "engine_forkchoiceUpdatedV3" => engine::forkchoice_Updated_V3(),
