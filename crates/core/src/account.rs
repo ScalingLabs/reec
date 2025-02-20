@@ -5,7 +5,7 @@ use ethereum_types::{H256, U256};
 use serde::Deserialize;
 
 
-#[allow(unsued)]
+#[allow(unused)]
 #[derive(Debug, Deserialize, PartialEq)]
 pub struct Account {
     #[serde(default)]
