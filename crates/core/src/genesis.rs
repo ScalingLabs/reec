@@ -69,3 +69,95 @@ pub struct ChainConfig {
     #[serde(default)]
     pub terminal_total_difficulty_passed: bool,
 }
+
+
+#[cfg(test)]
+mod tests {
+    use std::str::FromStr;
+    use std::{fs::File, io::BufReader};
+
+    use super::*;
+
+    #[test]
+    fn deserialize_genesis_file() {
+        // Deserialize genesis file
+        let file = File::open("../../test_data/genesis.json").expect("Failed to open genesis file");
+        let reader = BufReader::new(file);
+        let genesis: Genesis =
+            serde_json::from_reader(reader).expect("Failed to deserialize genesis file");
+        // Check Genesis fields
+        // Chain config
+        let expected_chain_config = ChainConfig {
+            chain_id: U256::from(3151908),
+            homestead_block: Some(0),
+            eip150_block: Some(0),
+            eip155_block: Some(0),
+            eip158_block: Some(0),
+            byzantium_block: Some(0),
+            constantinople_block: Some(0),
+            petersburg_block: Some(0),
+            istanbul_block: Some(0),
+            berlin_block: Some(0),
+            london_block: Some(0),
+            merge_netsplit_block: Some(0),
+            shanghai_time: Some(0),
+            cancun_time: Some(0),
+            prague_time: Some(1718232101),
+            terminal_total_difficulty: Some(U256::from(0)),
+            terminal_total_difficulty_passed: true,
+            ..Default::default()
+        };
+        assert_eq!(&genesis.config, &expected_chain_config);
+        // Genesis header fields
+        assert_eq!(genesis.coinbase, Address::from([0; 20]));
+        assert_eq!(genesis.difficulty, U256::from(1));
+        assert!(genesis.extra_data.is_empty());
+        assert_eq!(genesis.gas_limit, 0x17d7840);
+        assert_eq!(genesis.nonce, 0x1234);
+        assert_eq!(genesis.mixhash, H256::from([0; 32]));
+        assert_eq!(genesis.timestamp, 1718040081);
+        // Check alloc field
+        // We will only check a couple of the hashmap's values as it is quite large
+        let addr_a = Address::from_str("0x000F3df6D732807Ef1319fB7B8bB8522d0Beac02").unwrap();
+        assert!(genesis.alloc.contains_key(&addr_a));
+        let expected_account_a = Account {
+        code: Bytes::from(String::from("0x3373fffffffffffffffffffffffffffffffffffffffe14604d57602036146024575f5ffd5b5f35801560495762001fff810690815414603c575f5ffd5b62001fff01545f5260205ff35b5f5ffd5b62001fff42064281555f359062001fff015500")),
+        storage: Default::default(),
+        balance: 0.into(),
+        nonce: 1,
+    };
+        assert_eq!(genesis.alloc[&addr_a], expected_account_a);
+        // Check some storage values from another account
+        let addr_b = Address::from_str("0x4242424242424242424242424242424242424242").unwrap();
+        assert!(genesis.alloc.contains_key(&addr_b));
+        let addr_b_storage = &genesis.alloc[&addr_b].storage;
+        assert_eq!(
+            addr_b_storage.get(
+                &H256::from_str(
+                    "0x0000000000000000000000000000000000000000000000000000000000000022"
+                )
+                .unwrap()
+            ),
+            Some(
+                &H256::from_str(
+                    "0xf5a5fd42d16a20302798ef6ed309979b43003d2320d9f0e8ea9831a92759fb4b"
+                )
+                .unwrap()
+            )
+        );
+        assert_eq!(
+            addr_b_storage.get(
+                &H256::from_str(
+                    "0x0000000000000000000000000000000000000000000000000000000000000038"
+                )
+                .unwrap()
+            ),
+            Some(
+                &H256::from_str(
+                    "0xe71f0aa83cc32edfbefa9f4d3e0174ca85182eec9f3a09f6a6c0df6377a510d7"
+                )
+                .unwrap()
+            )
+        );
+    }
+}
