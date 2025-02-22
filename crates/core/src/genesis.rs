@@ -47,7 +47,7 @@ pub struct ChainConfig {
     pub byzantium_block: Option<u64>,
     pub constantinople_block: Option<u64>,
     pub petersburg_block: Option<u64>,
-    pub instanbul_block: Option<u64>,
+    pub istanbul_block: Option<u64>,
     pub muir_glacier_block: Option<u64>,
     pub berlin_block: Option<u64>,
     pub london_block: Option<u64>,
@@ -107,6 +107,8 @@ mod tests {
             terminal_total_difficulty_passed: true,
             ..Default::default()
         };
+        println!("Deserialized config: {:#?}", genesis.config);
+        println!("Expected config: {:#?}", expected_chain_config);
         assert_eq!(&genesis.config, &expected_chain_config);
         // Genesis header fields
         assert_eq!(genesis.coinbase, Address::from([0; 20]));

@@ -22,7 +22,7 @@ pub mod u256 {
         Ok(Some(U256::from_dec_str(&value).map_err(|e|D::Error::custom(e.to_string()))?,))
     }
 
-    pub fn deser_dec_str<'de: D>(d: D) -> Result<U256, D::Error> 
+    pub fn deser_dec_str<'de, D>(d: D) -> Result<U256, D::Error> 
     where 
         D: Deserializer<'de>,
     {
@@ -32,8 +32,6 @@ pub mod u256 {
 }
 
 pub mod u64 {
-    use serde::de::value;
-
     use super::*;
 
     pub fn deser_dec_str<'de, D>(d: D) -> Result<u64, D::Error>
