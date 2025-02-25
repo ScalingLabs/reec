@@ -1003,8 +1003,10 @@ name = "reec"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "core",
  "ethereum-types",
  "rpc",
+ "serde_json",
  "tracing",
  "tracing-subscriber",
 ]
