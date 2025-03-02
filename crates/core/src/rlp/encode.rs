@@ -1,3 +1,4 @@
+use crate::U256;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
 use bytes::BufMut;
@@ -166,6 +167,15 @@ impl RLPEncode for String {
     }
 }
 
+impl RLPEncode for U256 {
+    fn encode(&self, buf: &mut dyn BufMut) {
+        let leading_zeros_in_bytes = (self.leading_zeros() / 8) as usize;
+        let mut bytes : [u8; 32] = [0; 32];
+        self.to_big_endian(& mut bytes);
+        bytes[leading_zeros_in_bytes..].encode(buf);
+    }
+}
+
 impl <T: RLPEncode> RLPEncode for Vec<T> {
     fn encode(&self, buf: &mut dyn BufMut) {
         if self.is_empty() {
@@ -189,6 +199,24 @@ impl <T: RLPEncode> RLPEncode for Vec<T> {
                 item.encode(buf);
             }
         }
+    }
+}
+
+impl <T: RLPEncode, S: RLPEncode> RLPEncode for (T, S) {
+    fn encode(&self, buf: &mut dyn BufMut) {
+        let total_len = self.0.length() + self.1.length();
+        if total_len < 56 {
+            buf.put_u8(0xc0 + total_len as u8);
+        } else {
+            let mut bytes = ArrayVec::<[u8; 8]>::new();
+            bytes.extend_from_slice(&total_len.to_be_bytes());
+            let start = bytes.iter().position(|&x| x != 0).unwrap();
+            let len = bytes.len() - start;
+            buf.put_u8(0xf7 + len as u8);
+            buf.put_slice(&bytes[start..]);
+        }
+        self.0.encode(buf);
+        self.1.encode(buf);
     }
 }
 
@@ -259,7 +287,7 @@ impl RLPEncode for ethereum_types::Signature {
 #[cfg(test)]
 mod test {
     use std::net::IpAddr;
-    use ethereum_types::Address;
+    use ethereum_types::{Address, U256};
     use hex_literal::hex;
     use super::RLPEncode;
 
@@ -485,6 +513,33 @@ mod test {
         };
 
         let expected = hex!("94ef2d6d194084c2de36e0dabfce45d046b37d1106");
+        assert_eq!(encoded, expected);
+    }
+
+    #[test]
+    fn can_encode_u256() {
+        let mut encoded = Vec::new();
+        U256::from(1).encode(&mut encoded);
+        assert_eq!(encoded, vec![1]);
+
+        let mut encoded = Vec::new();
+        U256::from(128).encode(&mut encoded);
+        assert_eq!(encoded, vec![0x80 + 1, 128]);   
+
+        let mut encoded = Vec::new();
+        U256::max_value().encode(&mut encoded);
+        let bytes = [0xff; 32];
+        let mut expected: Vec<u8> = bytes.into();
+        expected.insert(0, 0x80 + 32);
+        assert_eq!(encoded, expected);     
+    }
+
+    #[test]
+    fn can_encode_tuple() {
+        let tuple: (u8, u8) = (0x01, 0x02);
+        let mut encoded = Vec::new();
+        tuple.encode(&mut encoded);
+        let expected = vec![0xc0 + 2, 0x01, 0x02];
         assert_eq!(encoded, expected);
     }
 }
