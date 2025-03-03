@@ -2,18 +2,48 @@ use std::collections::HashMap;
 
 use bytes::Bytes;
 use ethereum_types::{H256, U256};
-use serde::Deserialize;
+use crate::rlp::encode::RLPEncode;
+use super::GenesisAccount;
 
 
 #[allow(unused)]
-#[derive(Debug, Deserialize, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub struct Account {
-    #[serde(default)]
+    pub info: AccountInfo,
     pub code: Bytes,
-    #[serde(default)]
     pub storage: HashMap<H256, H256>,
-    #[serde(deserialize_with = "crate::serde_utils::u256::deser_dec_str")]
     pub balance: U256,
-    #[serde(default, deserialize_with = "crate::serde_utils::u64::deser_dec_str")]
-    pub nonce: u64
+}
+
+#[derive(Debug, PartialEq)]
+pub struct AccountInfo {
+    pub code_hash: H256,
+    pub balance: U256,
+    pub nonce: u64,
+}
+
+impl From<GenesisAccount> for Account {
+    fn from(genesis: GenesisAccount) -> Self {
+        Self {
+            info: AccountInfo {
+                code_hash: code_hash(&genesis.code),
+                balance: genesis.balance,
+                nonce: genesis.nonce,
+            },
+            code: genesis.code,
+            storage: genesis.storage,
+        }
+    }
+}
+
+fn code_hash(code: &Bytes) -> H256 {
+    keccak_hash::keccak(code.as_ref())
+}
+
+impl RLPEncode for AccountInfo {
+    fn encode(&self, buf: &mut dyn bytes::BufMut) {
+        self.code_hash.encode(buf);
+        self.balance.encode(buf);
+        self.nonce.encode(buf);
+    }
 }

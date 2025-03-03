@@ -1,4 +1,3 @@
-use crate::types::Account;
 use bytes::Bytes;
 use ethereum_types::{Address, H256, U256};
 use serde::Deserialize;
@@ -11,7 +10,7 @@ pub struct Genesis {
     /// Chain configuration
     pub config: ChainConfig,
     /// The initial state of the accounts in the genesis block
-    pub alloc: HashMap<Address, Account>,
+    pub alloc: HashMap<Address, GenesisAccount>,
     /// Genesis header values
     pub coinbase: Address,
     pub difficulty: U256,
@@ -68,6 +67,20 @@ pub struct ChainConfig {
     /// Network has already passed the terminal total difficult
     #[serde(default)]
     pub terminal_total_difficulty_passed: bool,
+}
+
+#[allow(unused)]
+#[derive(Debug, Deserialize, PartialEq)]
+pub struct GenesisAccount {
+    #[serde(default)]
+    pub code: Bytes,
+    #[serde(default)]
+    pub storage: HashMap<H256, H256>,
+    #[serde(deserialize_with = "crate::serde_utils::u256::deser_dec_str")]
+    pub balance: U256,
+    #[serde(deserialize_with = "crate::serde_utils::u256::deser_dec_str")]
+    pub nonce: u64,
+    
 }
 
 
