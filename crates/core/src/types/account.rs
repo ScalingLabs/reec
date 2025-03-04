@@ -12,7 +12,6 @@ pub struct Account {
     pub info: AccountInfo,
     pub code: Bytes,
     pub storage: HashMap<H256, H256>,
-    pub balance: U256,
 }
 
 #[derive(Debug, PartialEq)]
@@ -45,5 +44,22 @@ impl RLPEncode for AccountInfo {
         self.code_hash.encode(buf);
         self.balance.encode(buf);
         self.nonce.encode(buf);
+    }
+}
+
+
+#[cfg(test)]
+mod test {
+    use std::str::FromStr;
+
+    use super::*;
+
+    #[test]
+    fn test_code_hash() {
+        let empty_code = Bytes::new();
+        let hash = code_hash(&empty_code);
+        assert_eq!(
+            hash, H256::from_str("c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470").unwrap()
+        )
     }
 }

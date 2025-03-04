@@ -1,7 +1,9 @@
 mod block;
+mod account;
 
+use account::{AccountInfoRLP, AddressRLP};
 use block::{BlockHeaderRLP, BlockBodyRLP};
-use core::types::BlockNumber;
+use core::types::{AccountInfo, BlockNumber};
 
 use libmdbx::{
     orm::{table, Database},
@@ -21,9 +23,14 @@ table!(
     ( Bodies ) BlockNumber => BlockBodyRLP
 );
 
+table!(
+    /// Account info table
+    ( AccountInfos ) AddressRLP => AccountInfoRLP
+);
+
 /// Initializes a new database with provided path. If the path is 'None', the database will be temporary.
 pub fn init_db(path: Option<impl AsRef<Path>>) -> Database {
-    let tables = [table_info!(Headers), table_info!(Bodies)].into_iter().collect();
+    let tables = [table_info!(Headers), table_info!(Bodies), table_info!(AccountInfos)].into_iter().collect();
     let path = path.map(|p| p.as_ref().to_path_buf());
     Database::create(path, &tables).unwrap()
 } 

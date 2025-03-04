@@ -78,7 +78,7 @@ pub struct GenesisAccount {
     pub storage: HashMap<H256, H256>,
     #[serde(deserialize_with = "crate::serde_utils::u256::deser_dec_str")]
     pub balance: U256,
-    #[serde(deserialize_with = "crate::serde_utils::u256::deser_dec_str")]
+    #[serde(deserialize_with = "crate::serde_utils::u64::deser_dec_str")]
     pub nonce: u64,
     
 }
@@ -135,7 +135,7 @@ mod tests {
         // We will only check a couple of the hashmap's values as it is quite large
         let addr_a = Address::from_str("0x000F3df6D732807Ef1319fB7B8bB8522d0Beac02").unwrap();
         assert!(genesis.alloc.contains_key(&addr_a));
-        let expected_account_a = Account {
+        let expected_account_a = GenesisAccount {
         code: Bytes::from(String::from("0x3373fffffffffffffffffffffffffffffffffffffffe14604d57602036146024575f5ffd5b5f35801560495762001fff810690815414603c575f5ffd5b62001fff01545f5260205ff35b5f5ffd5b62001fff42064281555f359062001fff015500")),
         storage: Default::default(),
         balance: 0.into(),
