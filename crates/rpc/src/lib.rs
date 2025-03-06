@@ -1,4 +1,4 @@
-use std::future::IntoFuture;
+use std::future::{IntoFuture, net::SocketAddr};
 use axum::{middleware::map_request, routing::post, Json, Router};
 use serde_json::Value;
 use tracing::info;
@@ -13,36 +13,23 @@ mod utils;
 mod eth;
 mod admin;
 
-#[tokio::main]
-pub async fn start_api(http_addr: &str, http_port: &str, authrpc_addr: &str, authrpc_port: &str) {
+
+pub async fn start_api(http_addr: SocketAddr, authrpc_addr: SocketAddr) {
     let http_router = Router::new().route("/", post(handle_http_request));
-    let http_url = create_url(http_addr, http_port);
-    let http_listener = TcpListener::bind(&http_url).await.unwrap();
+    let http_listener = TcpListener::bind(http_addr).await.unwrap();
     let http_server = axum::serve(http_listener, http_router).with_graceful_shutdown(shutdown_signal()).into_future();
-    info!("HTTP Server listening on {}", http_url);
+    info!("HTTP Server listening on {}", http_addr);
 
     let authrpc_router = Router::new().route("/", post(handle_authrpc_request));
-    let authrpc_url = create_url(authrpc_addr, authrpc_port);
-    let authrpc_listener = TcpListener::bind(&authrpc_url).await.unwrap();
+    let authrpc_listener = TcpListener::bind(authrpc_addr).await.unwrap();
     let authrpc_server = axum::serve(authrpc_listener, authrpc_router).with_graceful_shutdown(shutdown_signal()).into_future();
-    info!("AuthRPC Server listening on {}", authrpc_url);
+    info!("AUTH-RPC Server listening on {}", authrpc_addr);
 
-    info!("Servers started successfully. Press Ctrl+C to stop.");
-
-    let res = tokio::try_join!(http_server, authrpc_server);
-    match res {
-        Ok(_) => {},
-        Err(e) => info!("Error, shutting down servers: {:?}", e),
-    }
+    let _ = tokio::try_join!(http_server, authrpc_server).inspect_err(|e| info!("Error shutting down servers: {:?}", e));
 }
 
 async fn shutdown_signal(){
     tokio::signal::ctrl_c().await.expect("Failed to listen to the shutdown signal");
-}
-
-
-fn create_url(addr: &str, port: &str) -> String {
-    format!("{}:{}", addr, port)
 }
 
 pub async fn handle_http_request(body: String) -> Json<Value> {
