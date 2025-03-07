@@ -22,8 +22,8 @@ async fn main() {
     let authrpc_port = matches.get_one::<String>("authrpc.port").expect("authrpc.port is required");
     let tcp_addr = matches.get_one::<String>("addr").expect("addr is required");
     let tcp_port = matches.get_one::<String>("port").expect("port is required");
-    let udp_addr = matches.get_one::<String>("discovery").expect("discovery.addr is required");
-    let udp_port = matches.get_one::<String>("discovery.port").expect("discovery port is required")
+    let udp_addr = matches.get_one::<String>("discovery.addr").expect("discovery.addr is required");
+    let udp_port = matches.get_one::<String>("discovery.port").expect("discovery port is required");
     let genesis_file_path = matches.get_one::<String>("network").expect("network is required");
 
     let http_socket_addr = parse_socket_addr(http_addr, http_port).expect("Failed to parse http address and port");
@@ -51,4 +51,5 @@ fn parse_socket_addr(addr: &str, port: &str) -> io::Result<SocketAddr> {
             io::ErrorKind::NotFound,
             "Failed to pairsesockets address",
         ))
+    }
 }

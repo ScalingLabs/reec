@@ -1,11 +1,11 @@
-use std::future::{IntoFuture, net::SocketAddr};
-use axum::{middleware::map_request, routing::post, Json, Router};
+use std::{future::IntoFuture, net::SocketAddr};
+use axum::{routing::post, Json, Router};
 use serde_json::Value;
 use tracing::info;
 use tokio::net::TcpListener;
 
 use engine::ExchangeCapabilitiesRequest;
-use eth::{block, client::{self, chain_id}};
+use eth::{block, client};
 use utils::{RpcErr, RpcErrorMetadata, RpcErrorResponse, RpcRequest, RpcSuccessResponse};
 
 mod engine;
