@@ -3,7 +3,7 @@ mod account;
 
 use account::{AccountInfoRLP, AddressRLP, AccountStorageKeyRLP, AccountStorageValueRLP, AccountCodeHashRLP, AccountCodeRLP};
 use block::{BlockHeaderRLP, BlockBodyRLP};
-use core::types::BlockNumber;
+use reec_core::types::BlockNumber;
 
 use libmdbx::{
     dupsort, orm::{table, Database}, table_info

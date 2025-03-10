@@ -1,5 +1,5 @@
 [package]
-name = "evm"
+name = "reec-evm"
 version.workspace = true
 edition.workspace = true
 

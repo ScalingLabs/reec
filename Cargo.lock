@@ -297,27 +297,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5b63caa9aa9397e2d9480a9b13673856c78d8ac123288526c37d7839f2a86990"
 
 [[package]]
-name = "consensus"
-version = "0.1.0"
-
-[[package]]
 name = "convert_case"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6245d59a3e82a7fc217c5828a6692dbc6dfb63a0c8c90495621f7b9d79704a0e"
-
-[[package]]
-name = "core"
-version = "0.1.0"
-dependencies = [
- "bytes",
- "ethereum-types",
- "hex-literal",
- "keccak-hash",
- "serde",
- "serde_json",
- "tinyvec",
-]
 
 [[package]]
 name = "crunchy"
@@ -386,10 +369,6 @@ dependencies = [
  "primitive-types",
  "uint",
 ]
-
-[[package]]
-name = "evm"
-version = "0.1.0"
 
 [[package]]
 name = "fastrand"
@@ -804,14 +783,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "net"
-version = "0.1.0"
-dependencies = [
- "tokio",
- "tracing",
-]
-
-[[package]]
 name = "nom"
 version = "7.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1014,18 +985,68 @@ dependencies = [
 ]
 
 [[package]]
-name = "reec"
+name = "reec-consensus"
+version = "0.1.0"
+
+[[package]]
+name = "reec-core"
+version = "0.1.0"
+dependencies = [
+ "bytes",
+ "ethereum-types",
+ "hex-literal",
+ "keccak-hash",
+ "serde",
+ "serde_json",
+ "tinyvec",
+]
+
+[[package]]
+name = "reec-evm"
+version = "0.1.0"
+
+[[package]]
+name = "reec-net"
+version = "0.1.0"
+dependencies = [
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "reec-reec"
 version = "0.1.0"
 dependencies = [
  "clap",
- "core",
  "ethereum-types",
- "net",
- "rpc",
+ "reec-core",
+ "reec-net",
+ "reec-rpc",
  "serde_json",
  "tokio",
  "tracing",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "reec-rpc"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "reec-storage"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "libmdbx",
+ "reec-core",
 ]
 
 [[package]]
@@ -1065,18 +1086,6 @@ checksum = "bb919243f34364b6bd2fc10ef797edbfa75f33c252e7998527479c6d6b47e1ec"
 dependencies = [
  "bytes",
  "rustc-hex",
-]
-
-[[package]]
-name = "rpc"
-version = "0.1.0"
-dependencies = [
- "axum",
- "serde",
- "serde_json",
- "tokio",
- "tracing",
- "tracing-subscriber",
 ]
 
 [[package]]
@@ -1254,15 +1263,6 @@ name = "static_assertions"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
-
-[[package]]
-name = "storage"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "core",
- "libmdbx",
-]
 
 [[package]]
 name = "strsim"

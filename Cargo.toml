@@ -15,12 +15,12 @@ version = "0.1.0"
 edition = "2021"
 
 [workspace.dependencies]
-consensus = { path = "./crates/consesnsus"}
-core = { path = "./crates/core" }
-evm = { path = "./crates/evm" }
-net = { path = "./crates/net" }
-rpc = { path = "./crates/rpc" }
-storage = { path = "./crates/storage" }
+reec-consensus = { path = "./crates/consesnsus"}
+reec-core = { path = "./crates/core" }
+reec-evm = { path = "./crates/evm" }
+reec-net = { path = "./crates/net" }
+reec-rpc = { path = "./crates/rpc" }
+reec-storage = { path = "./crates/storage" }
 
 ethereum-types = "0.14.1"
 tracing = "0.1"
