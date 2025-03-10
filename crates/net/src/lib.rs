@@ -11,15 +11,3 @@ pub async fn start_network(udp_addr: SocketAddr, tcp_addr: SocketAddr) {
     let tcp_socket = TcpSocket::new_v4().unwrap();
     tcp_socket.bind(tcp_addr).unwrap();
 }
-
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
-    }
-}

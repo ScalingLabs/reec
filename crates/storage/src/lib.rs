@@ -1,7 +1,7 @@
 mod block;
 mod account;
 
-use account::{AccountInfoRLP, AddressRLP, AccountStorageKeyRLP, AccountStorageValueRLP};
+use account::{AccountInfoRLP, AddressRLP, AccountStorageKeyRLP, AccountStorageValueRLP, AccountCodeHashRLP, AccountCodeRLP};
 use block::{BlockHeaderRLP, BlockBodyRLP};
 use core::types::BlockNumber;
 
@@ -32,9 +32,14 @@ dupsort!(
     ( AccountStorages ) AddressRLP[AccountStorageKeyRLP] => AccountStorageValueRLP
 );
 
+table!(
+    /// Account codes table.
+    ( AccountCodes ) AccountCodeHashRLP => AccountCodeRLP
+);
+
 /// Initializes a new database with provided path. If the path is 'None', the database will be temporary.
 pub fn init_db(path: Option<impl AsRef<Path>>) -> Database {
-    let tables = [table_info!(Headers), table_info!(Bodies), table_info!(AccountInfos), table_info!(AccountStorages)].into_iter().collect();
+    let tables = [table_info!(Headers), table_info!(Bodies), table_info!(AccountInfos), table_info!(AccountStorages), table_info!(AccountCodes)].into_iter().collect();
     let path = path.map(|p| p.as_ref().to_path_buf());
     Database::create(path, &tables).unwrap()
 } 
