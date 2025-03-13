@@ -84,6 +84,15 @@ pub struct Header {
 
 #[derive(Debug, PartialEq, Eq, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
+pub struct Block {
+    pub block_header: Option<Header>,
+    pub rlp: Bytes,
+    pub transactions: Option<Vec<Transaction>>,
+    pub uncle_headers: Option<Vec<Header>>,
+}
+
+#[derive(Debug, PartialEq, Eq, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct Transaction {
     #[serde(rename = "type")]
     pub transaction_type: Option<U256>,
@@ -97,6 +106,7 @@ pub struct Transaction {
     pub value: U256,
     pub chain_id: Option<U256>,
     pub access_list: Option<AccessList>,
+    pub max_fee_per_gas: Option<U256>,
     pub max_priority_fee_per_gas: Option<U256>,
     pub hash: Option<H256>,
     pub sender: Address,
