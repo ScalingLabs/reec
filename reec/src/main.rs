@@ -1,7 +1,9 @@
 use reec_core::types::Genesis;
+use reec_net::types::BootNode;
 use std::{
     io::{self, BufReader},
-    net::{SocketAddr, ToSocketAddrs}
+    net::{SocketAddr, ToSocketAddrs},
+    str::FromStr,
 };
 use clap::Error;
 use tokio::join;
@@ -25,6 +27,8 @@ async fn main() {
     let udp_addr = matches.get_one::<String>("discovery.addr").expect("discovery.addr is required");
     let udp_port = matches.get_one::<String>("discovery.port").expect("discovery port is required");
     let genesis_file_path = matches.get_one::<String>("network").expect("network is required");
+    let bootnode_list: Vec<_> = matches.get_many::<String>("bootnodes").expect("bootnodes is required").collect();
+    let _bootnodes: Vec<BootNode> = bootnode_list.iter().map(|s| BootNode::from_str(s).expect("Failed to parse bootnodes")).collect();
 
     let http_socket_addr = parse_socket_addr(http_addr, http_port).expect("Failed to parse http address and port");
     let authrpc_socket_addr = parse_socket_addr(&authrpc_addr, &authrpc_port).expect("Failed to parse authrpc address and port");

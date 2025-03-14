@@ -94,7 +94,7 @@ mod tests {
     #[test]
     fn deserialize_genesis_file() {
         // Deserialize genesis file
-        let file = File::open("../../test_data/genesis.json").expect("Failed to open genesis file");
+        let file = File::open("./data/genesis.json").expect("Failed to open genesis file");
         let reader = BufReader::new(file);
         let genesis: Genesis =
             serde_json::from_reader(reader).expect("Failed to deserialize genesis file");
