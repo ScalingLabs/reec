@@ -22,8 +22,8 @@ async fn main() {
     let http_port = matches.get_one::<String>("http.port").expect("http.port is required");
     let authrpc_addr = matches.get_one::<String>("authrpc.addr").expect("authrpc.addr is required");
     let authrpc_port = matches.get_one::<String>("authrpc.port").expect("authrpc.port is required");
-    let tcp_addr = matches.get_one::<String>("addr").expect("addr is required");
-    let tcp_port = matches.get_one::<String>("port").expect("port is required");
+    let tcp_addr = matches.get_one::<String>("p2p.addr").expect("addr is required");
+    let tcp_port = matches.get_one::<String>("p2p.port").expect("port is required");
     let udp_addr = matches.get_one::<String>("discovery.addr").expect("discovery.addr is required");
     let udp_port = matches.get_one::<String>("discovery.port").expect("discovery port is required");
     let genesis_file_path = matches.get_one::<String>("network").expect("network is required");
