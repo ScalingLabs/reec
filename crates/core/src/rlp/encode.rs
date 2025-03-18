@@ -4,6 +4,8 @@ use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use bytes::{BufMut, Bytes};
 use tinyvec::ArrayVec;
 
+use super::constants::RLP_NULL;
+
 pub trait RLPEncode {
     fn encode(&self, buf: &mut dyn BufMut);
     
@@ -20,7 +22,7 @@ impl RLPEncode for bool {
         if *self {
             buf.put_u8(0x01);
         } else {
-            buf.put_u8(0x80);
+            buf.put_u8(RLP_NULL);
         }
     }
 
@@ -33,14 +35,14 @@ impl RLPEncode for bool {
 impl RLPEncode for u8 {
     fn encode(&self, buf: &mut dyn BufMut) {
         match *self {
-            0 => buf.put_u8(0x80),
+            0 => buf.put_u8(RLP_NULL),
             n @ 1..=0x7f => buf.put_u8(n),
             n => {
                 let mut bytes = ArrayVec::<[u8; 8]>::new();
                 bytes.extend_from_slice(&n.to_be_bytes());
                 let start = bytes.iter().position(|&x| x != 0).unwrap();
                 let len = bytes.len() - start;
-                buf.put_u8(0x80 + len as u8);
+                buf.put_u8(RLP_NULL + len as u8);
                 buf.put_slice(&bytes[start..]);
             }
         }
@@ -50,14 +52,14 @@ impl RLPEncode for u8 {
 impl RLPEncode for u16 {
     fn encode(&self, buf: &mut dyn BufMut) {
         match *self {
-            0 => buf.put_u8(0x80),
+            0 => buf.put_u8(RLP_NULL),
             n@ 1..=0x7f => buf.put_u8(n as u8),
             n => {
                 let mut bytes = ArrayVec::<[u8; 8]>::new();
                 bytes.extend_from_slice(&n.to_be_bytes());
                 let start = bytes.iter().position(|&x| x != 0).unwrap();
                 let len = bytes.len() - start;
-                buf.put_u8(0x80 + len as u8);
+                buf.put_u8(RLP_NULL + len as u8);
                 buf.put_slice(&bytes[start..]);
             }
         }
@@ -67,14 +69,14 @@ impl RLPEncode for u16 {
 impl RLPEncode for u32 {
     fn encode(&self, buf: &mut dyn BufMut) {
         match *self {
-            0 => buf.put_u8(0x80),
+            0 => buf.put_u8(RLP_NULL),
             n @ 1..=0x7f => buf.put_u8(n as u8),
             n => {
                 let mut bytes = ArrayVec::<[u8; 8]>::new();
                 bytes.extend_from_slice(&n.to_be_bytes());
                 let start = bytes.iter().position(|&x| x != 0).unwrap();
                 let len = bytes.len() - start;
-                buf.put_u8(0x80 + len as u8);
+                buf.put_u8(RLP_NULL + len as u8);
                 buf.put_slice(&bytes[start..]);
             }
         }
@@ -84,14 +86,14 @@ impl RLPEncode for u32 {
 impl RLPEncode for u64 {
     fn encode(&self, buf: &mut dyn BufMut) {
         match *self {
-            0 => buf.put_u8(0x80),
+            0 => buf.put_u8(RLP_NULL),
             n @ 1..=0x7f => buf.put_u8(n as u8),
             n => {
                 let mut bytes = ArrayVec::<[u8; 8]>::new();
                 bytes.extend_from_slice(&n.to_be_bytes());
                 let start = bytes.iter().position(|&x| x != 0).unwrap();
                 let len = bytes.len() - start;
-                buf.put_u8(0x80 + len as u8);
+                buf.put_u8(RLP_NULL + len as u8);
                 buf.put_slice(&bytes[start..]);
             }
         }
@@ -101,14 +103,14 @@ impl RLPEncode for u64 {
 impl RLPEncode for usize {
     fn encode(&self, buf: &mut dyn BufMut) {
         match *self {
-            0 => buf.put_u8(0x80),
+            0 => buf.put_u8(RLP_NULL),
             n @ 1..=0x7f => buf.put_u8(n as u8),
             n => {
                 let mut bytes = ArrayVec::<[u8; 8]>::new();
                 bytes.extend_from_slice(&n.to_be_bytes());
                 let start = bytes.iter().position(|&x|x != 0).unwrap();
                 let len = bytes.len() - start;
-                buf.put_u8(0x80 + len as u8);
+                buf.put_u8(RLP_NULL + len as u8);
                 buf.put_slice(&bytes[start..]);
             }
         }
@@ -117,19 +119,19 @@ impl RLPEncode for usize {
 
 impl RLPEncode for () {
     fn encode(&self, buf: &mut dyn BufMut) {
-        buf.put_u8(0x80);
+        buf.put_u8(RLP_NULL);
     }
 }
 
 impl RLPEncode for [u8] {
     #[inline(always)]
     fn encode(&self, buf: &mut dyn BufMut) {
-        if self.len() == 1 && self[0] < 0x80 {
+        if self.len() == 1 && self[0] < RLP_NULL {
             buf.put_u8(self[0]);
         } else {
             let len = self.len();
             if len < 56 {
-                buf.put_u8(0x80 + len as u8);
+                buf.put_u8(RLP_NULL + len as u8);
             } else {
                 let mut bytes = ArrayVec::<[u8; 8]>::new();
                 bytes.extend_from_slice(&len.to_be_bytes());
@@ -295,6 +297,7 @@ mod test {
     use std::net::IpAddr;
     use ethereum_types::{Address, U256};
     use hex_literal::hex;
+    use crate::rlp::constants::{RLP_EMPTY_LIST, RLP_NULL};
     use super::RLPEncode;
 
     #[test]
@@ -305,14 +308,14 @@ mod test {
 
         let mut encoded = Vec::new();
         false.encode(&mut encoded);
-        assert_eq!(encoded, vec![0x80]);
+        assert_eq!(encoded, vec![RLP_NULL]);
     }
 
     #[test]
     fn can_encode_u8() {
         let mut encoded = Vec::new();
         0u8.encode(&mut encoded);
-        assert_eq!(encoded, vec![0x80]);
+        assert_eq!(encoded, vec![RLP_NULL]);
 
         let mut encoded = Vec::new();
         1u8.encode(&mut encoded);
@@ -324,18 +327,18 @@ mod test {
 
         let mut encoded = Vec::new();
         0x80u8.encode(&mut encoded);
-        assert_eq!(encoded, vec![0x80 + 1, 0x80]);
+        assert_eq!(encoded, vec![RLP_NULL + 1, 0x80]);
 
         let mut encoded = Vec::new();
         0x90u8.encode(&mut encoded);
-        assert_eq!(encoded, vec![0x80 + 1, 0x90]);
+        assert_eq!(encoded, vec![RLP_NULL + 1, 0x90]);
     }
 
     #[test]
     fn can_encode_u16() {
         let mut encoded = Vec::new();
         0u16.encode(&mut encoded);
-        assert_eq!(encoded, vec![0x80]);
+        assert_eq!(encoded, vec![RLP_NULL]);
 
         let mut encoded = Vec::new();
         1u16.encode(&mut encoded);
@@ -347,18 +350,18 @@ mod test {
 
         let mut encoded = Vec::new();
         0x80u16.encode(&mut encoded);
-        assert_eq!(encoded, vec![0x80 + 1, 0x80]);
+        assert_eq!(encoded, vec![RLP_NULL + 1, 0x80]);
 
         let mut encoded = Vec::new();
         0x90u16.encode(&mut encoded);
-        assert_eq!(encoded, vec![0x80 + 1, 0x90]);
+        assert_eq!(encoded, vec![RLP_NULL + 1, 0x90]);
     }
 
     #[test]
     fn can_encode_u32() {
         let mut encoded = Vec::new();
         0u16.encode(&mut encoded);
-        assert_eq!(encoded, vec![0x80]);
+        assert_eq!(encoded, vec![RLP_NULL]);
 
         let mut encoded = Vec::new();
         1u16.encode(&mut encoded);
@@ -370,18 +373,18 @@ mod test {
 
         let mut encoded = Vec::new();
         0x80u16.encode(&mut encoded);
-        assert_eq!(encoded, vec![0x80 + 1, 0x80]);
+        assert_eq!(encoded, vec![RLP_NULL + 1, 0x80]);
 
         let mut encoded = Vec::new();
         0x90u16.encode(&mut encoded);
-        assert_eq!(encoded, vec![0x80 + 1, 0x90]);
+        assert_eq!(encoded, vec![RLP_NULL + 1, 0x90]);
     }
 
     #[test]
     fn can_encode_u64() {
         let mut encoded = Vec::new();
         0u8.encode(&mut encoded);
-        assert_eq!(encoded, vec![0x80]);
+        assert_eq!(encoded, vec![RLP_NULL]);
 
         let mut encoded = Vec::new();
         1u8.encode(&mut encoded);
@@ -393,18 +396,18 @@ mod test {
 
         let mut encoded = Vec::new();
         0x80u8.encode(&mut encoded);
-        assert_eq!(encoded, vec![0x80 + 1, 0x80]);
+        assert_eq!(encoded, vec![RLP_NULL + 1, 0x80]);
 
         let mut encoded = Vec::new();
         0x90u8.encode(&mut encoded);
-        assert_eq!(encoded, vec![0x80 + 1, 0x90]);
+        assert_eq!(encoded, vec![RLP_NULL + 1, 0x90]);
     }
 
     #[test]
     fn can_encode_usize() {
         let mut encoded = Vec::new();
         0u8.encode(&mut encoded);
-        assert_eq!(encoded, vec![0x80]);
+        assert_eq!(encoded, vec![RLP_NULL]);
 
         let mut encoded = Vec::new();
         1u8.encode(&mut encoded);
@@ -416,11 +419,11 @@ mod test {
 
         let mut encoded = Vec::new();
         0x80u8.encode(&mut encoded);
-        assert_eq!(encoded, vec![0x80 + 1, 0x80]);
+        assert_eq!(encoded, vec![RLP_NULL + 1, 0x80]);
 
         let mut encoded = Vec::new();
         0x90u8.encode(&mut encoded);
-        assert_eq!(encoded, vec![0x80 + 1, 0x90]);
+        assert_eq!(encoded, vec![RLP_NULL + 1, 0x90]);
     }
 
     #[test]
@@ -480,7 +483,7 @@ mod test {
             message.encode(&mut buf);
             buf
         };
-        let expected: [u8; 1] = [0xc0]; 
+        let expected: [u8; 1] = [RLP_EMPTY_LIST]; 
         assert_eq!(encoded, expected);
     }
 
@@ -494,7 +497,7 @@ mod test {
             buf
         };
 
-        let expected:[u8; 5] = [0x84, 192, 168, 0, 1];
+        let expected:[u8; 5] = [RLP_NULL + 4, 192, 168, 0, 1];
         assert_eq!(encoded, expected);
 
         let message = "2001:0000:130F:0000:0000:09C0:876A:130B";
