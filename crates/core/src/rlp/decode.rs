@@ -8,282 +8,293 @@ use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
  
  /// Trait for decoding RLP encoded slices of data.
  /// See https://ethereum.org/en/developers/docs/data-structures-and-encoding/rlp/#rlp-decoding for more information.
+ /// The `decode_unfinished` method is used to decode an RLP encoded slice of data and return the decode value along with the remaining bytes.
+ /// The `decode` method is used to decode an RLP encoded slice of data and return the decoded value.
+ /// Implementors need to implement the `decode_unfinished` method
+ /// While consumers can use the `decode` method to decode the RLP encoded data.
  pub trait RLPDecode: Sized {
-     fn decode(rlp: &[u8]) -> Result<Self, RLPDecodeError>;
+     // fn decode(rlp: &[u8]) -> Result<Self, RLPDecodeError>;
+     fn decode_unfinished(rlp: &[u8]) -> Result<(Self, &[u8]), RLPDecodeError>;
+
+     fn decode(rlp: &[u8]) -> Result<Self, RLPDecodeError> {
+        let (decoded, remaining) = Self::decode_unfinished(rlp)?;
+        if !remaining.is_empty() {
+            return Err(RLPDecodeError::InvalidLength);
+        }
+        Ok(decoded)
+     }
  }
  
  impl RLPDecode for bool {
      #[inline(always)]
-     fn decode(rlp: &[u8]) -> Result<Self, RLPDecodeError> {
-         let bytes = Bytes::copy_from_slice(rlp);
-         let len = bytes.len();
- 
-         if len == 0 {
+     fn decode_unfinished(rlp: &[u8]) -> Result<(Self, &[u8]), RLPDecodeError> {
+         if rlp.is_empty() {
              return Err(RLPDecodeError::InvalidLength);
          }
- 
-         Ok(rlp[0] != RLP_NULL)
+         let value = match rlp[0] {
+             RLP_NULL => false,
+             0x01 => true,
+             _ => return Err(RLPDecodeError::MalformedBoolean),
+         };
+         Ok((value, &rlp[1..]))
      }
  }
  
  impl RLPDecode for u8 {
-     fn decode(rlp: &[u8]) -> Result<Self, RLPDecodeError> {
-         if rlp.is_empty() {
-             return Err(RLPDecodeError::InvalidLength);
-         }
- 
-         match rlp[0] {
-             // Single byte in the range [0x00, 0x7f]
-             0..=0x7f => Ok(rlp[0]),
- 
-             // RLP_NULL represents zero
-             RLP_NULL => Ok(0),
- 
-             // Two bytes, where the first byte is RLP_NULL + 1
-             x if rlp.len() == 2 && x == RLP_NULL + 1 => Ok(rlp[1]),
- 
-             // Any other case is invalid for u8
-             _ => Err(RLPDecodeError::MalformedData),
+     fn decode_unfinished(rlp: &[u8]) -> Result<(Self, &[u8]), RLPDecodeError> {
+        if rlp.is_empty() {
+            return Err(RLPDecodeError::InvalidLength);
+        }
+        match rlp[0] {
+            // Single byte in the range [0x00, 0x7f]
+            0..=0x7f => Ok((rlp[0], &rlp[1..])),
+            // RLP_NULL represents zero
+            RLP_NULL => Ok((0, &rlp[1..])),
+            // Two bytes, where the first byte is RLP_NULL + 1
+            x if rlp.len() >= 2 && x == RLP_NULL + 1 => Ok((rlp[1], &rlp[2..])),
+            // Any other case is invalid for u8
+            _ => Err(RLPDecodeError::MalformedData),
          }
      }
  }
  
  impl RLPDecode for u16 {
-     fn decode(rlp: &[u8]) -> Result<Self, RLPDecodeError> {
-         let (bytes, _) = decode_bytes(rlp)?;
-         let padded_bytes = static_left_pad(bytes)?;
-         Ok(u16::from_be_bytes(padded_bytes))
-     }
+     fn decode_unfinished(rlp: &[u8]) -> Result<(Self, &[u8]), RLPDecodeError> {
+        let (bytes, rest) = decode_bytes(rlp)?;
+        let padded_bytes = static_left_pad(bytes)?;
+        Ok((u16::from_be_bytes(padded_bytes), rest))
+     } 
  }
  
  impl RLPDecode for u32 {
-     fn decode(rlp: &[u8]) -> Result<Self, RLPDecodeError> {
-         let (bytes, _) = decode_bytes(rlp)?;
-         let padded_bytes = static_left_pad(bytes)?;
-         Ok(u32::from_be_bytes(padded_bytes))
+     fn decode_unfinished(rlp: &[u8]) -> Result<(Self, &[u8]), RLPDecodeError> {
+        let (bytes, rest) = decode_bytes(rlp)?;
+        let padded_bytes = static_left_pad(bytes)?;
+        Ok((u32::from_be_bytes(padded_bytes), rest))
      }
  }
  
  impl RLPDecode for u64 {
-     fn decode(rlp: &[u8]) -> Result<Self, RLPDecodeError> {
-         let (bytes, _) = decode_bytes(rlp)?;
-         let padded_bytes = static_left_pad(bytes)?;
-         Ok(u64::from_be_bytes(padded_bytes))
+     fn decode_unfinished(rlp: &[u8]) -> Result<(Self, &[u8]), RLPDecodeError> {
+        let (bytes, rest) = decode_bytes(rlp)?;
+        let padded_bytes = static_left_pad(bytes)?;
+        Ok((u64::from_be_bytes(padded_bytes), rest))
      }
  }
  
  impl RLPDecode for u128 {
-     fn decode(rlp: &[u8]) -> Result<Self, RLPDecodeError> {
-         let (bytes, _) = decode_bytes(rlp)?;
-         let padded_bytes = static_left_pad(bytes)?;
-         Ok(u128::from_be_bytes(padded_bytes))
-     }
- }
+     fn decode_unfinished(rlp: &[u8]) -> Result<(Self, &[u8]), RLPDecodeError> {
+        let (bytes, rest) = decode_bytes(rlp)?;
+        let padded_bytes = static_left_pad(bytes)?;
+        Ok((u128::from_be_bytes(padded_bytes), rest))
+     }   
+}
  
+/// Decodes a slice of bytes of a fixed size. If you want to decode a list of elements
+/// you should use the Vec<T> implementation (for elements of same type),
+/// or use the decode implementation for tuples (for elements of different types)  
  impl<const N: usize> RLPDecode for [u8; N] {
-     fn decode(rlp: &[u8]) -> Result<Self, RLPDecodeError> {
-         let (decoded_bytes, _) = decode_bytes(rlp)?;
-         decoded_bytes
-             .try_into()
-             .map_err(|_| RLPDecodeError::InvalidLength)
+     fn decode_unfinished(rlp: &[u8]) -> Result<(Self, &[u8]), RLPDecodeError> {
+        let (decoded_bytes, rest) = decode_bytes(rlp)?;
+        let value = decoded_bytes
+            .try_into()
+            .map_err(|_| RLPDecodeError::InvalidLength);
+            Ok((value?, rest))
      }
- }
+}
  
  impl RLPDecode for Bytes {
-     fn decode(rlp: &[u8]) -> Result<Self, RLPDecodeError> {
-         decode_bytes(rlp).map(|decoded| Bytes::from(decoded.0.to_vec()))
+     fn decode_unfinished(rlp: &[u8]) -> Result<(Self, &[u8]), RLPDecodeError> {
+         let (decoded, rest) = decode_bytes(rlp)?;
+         Ok((Bytes::copy_from_slice(decoded), rest))
      }
  }
  
  impl RLPDecode for BytesMut {
-     fn decode(rlp: &[u8]) -> Result<Self, RLPDecodeError> {
-         decode_bytes(rlp).map(|decoded| BytesMut::from(decoded.0))
+     fn decode_unfinished(rlp: &[u8]) -> Result<(Self, &[u8]), RLPDecodeError> {
+         let (decoded, rest) = decode_bytes(rlp)?;
+         Ok((BytesMut::from(decoded), rest))
      }
  }
  
- impl RLPDecode for ethereum_types::H32 {
-     fn decode(rlp: &[u8]) -> Result<Self, RLPDecodeError> {
-         RLPDecode::decode(rlp).map(ethereum_types::H32)
+ impl RLPDecode for crate::H32 {
+     fn decode_unfinished(rlp: &[u8]) -> Result<(Self, &[u8]), RLPDecodeError> {
+         let (decoded, rest) = RLPDecode::decode_unfinished(rlp)?;
+         Ok((crate::H32(decoded), rest))
      }
  }
  
- impl RLPDecode for ethereum_types::H64 {
-     fn decode(rlp: &[u8]) -> Result<Self, RLPDecodeError> {
-         RLPDecode::decode(rlp).map(ethereum_types::H64)
+ impl RLPDecode for crate::H64 {
+     fn decode_unfinished(rlp: &[u8]) -> Result<(Self, &[u8]), RLPDecodeError> {
+         let (decoded, rest) = RLPDecode::decode_unfinished(rlp)?;
+         Ok((crate::H64(decoded), rest))
      }
  }
  
- impl RLPDecode for ethereum_types::H128 {
-     fn decode(rlp: &[u8]) -> Result<Self, RLPDecodeError> {
-         RLPDecode::decode(rlp).map(ethereum_types::H128)
+ impl RLPDecode for crate::H128 {
+     fn decode_unfinished(rlp: &[u8]) -> Result<(Self, &[u8]), RLPDecodeError> {
+         let (decoded, rest) = RLPDecode::decode_unfinished(rlp)?;
+         Ok((crate::H128(decoded), rest))
      }
  }
  
- impl RLPDecode for ethereum_types::H256 {
-     fn decode(rlp: &[u8]) -> Result<Self, RLPDecodeError> {
-         RLPDecode::decode(rlp).map(ethereum_types::H256)
+ impl RLPDecode for crate::H256 {
+     fn decode_unfinished(rlp: &[u8]) -> Result<(Self, &[u8]), RLPDecodeError> {
+         let (decoded, rest) = RLPDecode::decode_unfinished(rlp)?;
+         Ok((crate::H256(decoded), rest))
      }
  }
  
- impl RLPDecode for ethereum_types::H264 {
-     fn decode(rlp: &[u8]) -> Result<Self, RLPDecodeError> {
-         RLPDecode::decode(rlp).map(ethereum_types::H264)
+ impl RLPDecode for crate::H264 {
+     fn decode_unfinished(rlp: &[u8]) -> Result<(Self, &[u8]), RLPDecodeError> {
+         let (decoded, rest) = RLPDecode::decode_unfinished(rlp)?;
+         Ok((crate::H264(decoded), rest))
      }
  }
  
- impl RLPDecode for ethereum_types::Address {
-     fn decode(rlp: &[u8]) -> Result<Self, RLPDecodeError> {
-         RLPDecode::decode(rlp).map(ethereum_types::H160)
+ impl RLPDecode for crate::Address {
+     fn decode_unfinished(rlp: &[u8]) -> Result<(Self, &[u8]), RLPDecodeError> {
+         let (decoded, rest) = RLPDecode::decode_unfinished(rlp)?;
+         Ok((crate::H160(decoded), rest))
      }
  }
  
- impl RLPDecode for ethereum_types::H512 {
-     fn decode(rlp: &[u8]) -> Result<Self, RLPDecodeError> {
-         RLPDecode::decode(rlp).map(ethereum_types::H512)
+ impl RLPDecode for crate::H512 {
+     fn decode_unfinished(rlp: &[u8]) -> Result<(Self, &[u8]), RLPDecodeError> {
+         let (decoded, rest) = RLPDecode::decode_unfinished(rlp)?;
+         Ok((crate::H512(decoded), rest))
      }
  }
  
- impl RLPDecode for ethereum_types::Signature {
-     fn decode(rlp: &[u8]) -> Result<Self, RLPDecodeError> {
-         RLPDecode::decode(rlp).map(ethereum_types::H520)
+ impl RLPDecode for crate::Signature {
+     fn decode_unfinished(rlp: &[u8]) -> Result<(Self, &[u8]), RLPDecodeError> {
+         let (decoded, rest) = RLPDecode::decode_unfinished(rlp)?;
+         Ok((crate::H520(decoded), rest))
      }
  }
  
  impl RLPDecode for String {
-     fn decode(rlp: &[u8]) -> Result<Self, RLPDecodeError> {
-         let str_bytes = decode_bytes(rlp)?.0.to_vec();
-         String::from_utf8(str_bytes).map_err(|_| RLPDecodeError::MalformedData)
+     fn decode_unfinished(rlp: &[u8]) -> Result<(Self, &[u8]), RLPDecodeError> {
+         let (str_bytes, rest) = decode_bytes(rlp)?;
+         let value = String::from_utf8(str_bytes.to_vec()).map_err(|_| RLPDecodeError::MalformedData)?;
+         Ok((value, rest))
      }
  }
  
  impl RLPDecode for Ipv4Addr {
-     fn decode(rlp: &[u8]) -> Result<Self, RLPDecodeError> {
-         let (ip_bytes, _) = decode_bytes(rlp)?;
-         let octets: [u8; 4] = ip_bytes
+     fn decode_unfinished(rlp: &[u8]) -> Result<(Self, &[u8]), RLPDecodeError> {
+        let (ip_bytes, rest) = decode_bytes(rlp)?;
+        let octets: [u8; 4] = ip_bytes
              .try_into()
              .map_err(|_| RLPDecodeError::InvalidLength)?;
-         Ok(Ipv4Addr::from(octets))
+         Ok((Ipv4Addr::from(octets), rest))
      }
  }
  
  impl RLPDecode for Ipv6Addr {
-     fn decode(rlp: &[u8]) -> Result<Self, RLPDecodeError> {
-         let (ip_bytes, _) = decode_bytes(rlp)?;
-         let octets: [u8; 16] = ip_bytes
+     fn decode_unfinished(rlp: &[u8]) -> Result<(Self, &[u8]), RLPDecodeError> {
+        let (ip_bytes, rest) = decode_bytes(rlp)?;
+        let octets: [u8; 16] = ip_bytes
              .try_into()
              .map_err(|_| RLPDecodeError::InvalidLength)?;
-         Ok(Ipv6Addr::from(octets))
-     }
+         Ok((Ipv6Addr::from(octets), rest))
+     }  
  }
  
  impl RLPDecode for IpAddr {
-     fn decode(rlp: &[u8]) -> Result<Self, RLPDecodeError> {
-         let (ip_bytes, _) = decode_bytes(rlp)?;
+     fn decode_unfinished(rlp: &[u8]) -> Result<(Self, &[u8]), RLPDecodeError> {
+        let (ip_bytes, rest) = decode_bytes(rlp)?;
+        match ip_bytes.len() {
+            4 => {
+                let octets: [u8; 4] = ip_bytes
+                    .try_into()
+                    .map_err(|_| RLPDecodeError::InvalidLength)?;
+                Ok((IpAddr::V4(Ipv4Addr::from(octets)), rest))
+            }
+            16 => {
+                let octets: [u8; 16] = ip_bytes
+                    .try_into()
+                    .map_err(|_| RLPDecodeError::InvalidLength)?;
+                Ok((IpAddr::V6(Ipv6Addr::from(octets)), rest))
+            }
+            _ => Err(RLPDecodeError::InvalidLength),
+        }
+    }
+}
  
-         match ip_bytes.len() {
-             4 => {
-                 let octets: [u8; 4] = ip_bytes
-                     .try_into()
-                     .map_err(|_| RLPDecodeError::InvalidLength)?;
-                 Ok(IpAddr::V4(Ipv4Addr::from(octets)))
-             }
-             16 => {
-                 let octets: [u8; 16] = ip_bytes
-                     .try_into()
-                     .map_err(|_| RLPDecodeError::InvalidLength)?;
-                 Ok(IpAddr::V6(Ipv6Addr::from(octets)))
-             }
-             _ => Err(RLPDecodeError::InvalidLength),
-         }
-     }
- }
+ impl RLPDecode for crate::U256 {
+    fn decode_unfinished(rlp: &[u8]) -> Result<(Self, &[u8]), RLPDecodeError> {
+        let (bytes, rest) = decode_bytes(rlp)?;
+        let padded_bytes: [u8; 32] = static_left_pad(bytes)?;
+        Ok((crate::U256::from_big_endian(&padded_bytes), rest))
+    }        
+}
  
- impl RLPDecode for ethereum_types::U256 {
-     fn decode(rlp: &[u8]) -> Result<Self, RLPDecodeError> {
-         let (bytes, _) = decode_bytes(rlp)?;
-         let padded_bytes: [u8; 32] = static_left_pad(bytes)?;
-         Ok(ethereum_types::U256::from_big_endian(&padded_bytes))
-     }
- }
- 
+ // Here we intepret a Vec<T> as a list of elements of the same type.
+ // If you need to decode a slice of bytes, you should decode it via the 
+ // [u8; N] implementation or similar (Bytes, BytesMut, etc).
  impl<T: RLPDecode> RLPDecode for Vec<T> {
-     fn decode(rlp: &[u8]) -> Result<Self, RLPDecodeError> {
-         if rlp.is_empty() {
-             return Err(RLPDecodeError::InvalidLength);
-         }
- 
-         if rlp[0] == RLP_EMPTY_LIST {
-             return Ok(Vec::new());
-         }
- 
-         let (is_list, payload, _) = decode_rlp_item(rlp)?;
-         if !is_list {
-             return Err(RLPDecodeError::MalformedData);
-         }
- 
-         let mut result = Vec::new();
-         let mut current_slice = payload;
- 
-         while !current_slice.is_empty() {
-             let (_, rest) = decode_bytes(current_slice)?;
-             let item = T::decode(current_slice)?;
-             result.push(item);
-             current_slice = rest;
-         }
- 
-         Ok(result)
-     }
+     fn decode_unfinished(rlp: &[u8]) -> Result<(Self, &[u8]), RLPDecodeError> {
+        if rlp.is_empty() {
+            return Err(RLPDecodeError::InvalidLength);
+        }
+        if rlp[0] == RLP_EMPTY_LIST {
+            return Ok((Vec::new(), &rlp[1..]));
+        }
+        let (is_list, payload, input_rest) = decode_rlp_item(rlp)?;
+        if !is_list {
+            return Err(RLPDecodeError::MalformedData);
+        }
+        let mut result = Vec::new();
+        let mut current_slice = payload;
+        while !current_slice.is_empty() {
+            let (item, rest_current_list) = T::decode_unfinished(current_slice)?;
+            result.push(item);
+            current_slice = rest_current_list;
+        }
+        Ok((result, input_rest))
+    }
  }
  
  impl<T1: RLPDecode, T2: RLPDecode> RLPDecode for (T1, T2) {
-     fn decode(rlp: &[u8]) -> Result<Self, RLPDecodeError> {
-         if rlp.is_empty() {
-             return Err(RLPDecodeError::InvalidLength);
-         }
-         let (is_list, payload, _) = decode_rlp_item(rlp)?;
-         if !is_list {
-             return Err(RLPDecodeError::MalformedData);
-         }
- 
-         let (is_list, first, rest) = decode_rlp_item(payload)?;
-         let first = if first.is_empty() && is_list {
-             T1::decode(&[RLP_EMPTY_LIST])?
-         } else {
-             T1::decode(payload)?
-         };
-         let second = T2::decode(rest)?;
-         Ok((first, second))
-     }
- }
+     fn decode_unfinished(rlp: &[u8]) -> Result<(Self, &[u8]), RLPDecodeError> {
+        if rlp.is_empty() {
+            return Err(RLPDecodeError::InvalidLength);
+        }
+        let (is_list, payload, input_rest) = decode_rlp_item(rlp)?;
+        if !is_list {
+            return Err(RLPDecodeError::MalformedData);
+        }
+        let (first, first_rest) = T1::decode_unfinished(payload)?;
+        let (second, second_rest) = T2::decode_unfinished(first_rest)?;
+
+        // check that there is no more data to parse after the second element.
+        if !second_rest.is_empty() {
+            return Err(RLPDecodeError::MalformedData);
+        }
+        Ok(((first, second), input_rest))
+    }
+}
  
  impl<T1: RLPDecode, T2: RLPDecode, T3: RLPDecode> RLPDecode for (T1, T2, T3) {
-     fn decode(rlp: &[u8]) -> Result<Self, RLPDecodeError> {
-         if rlp.is_empty() {
-             return Err(RLPDecodeError::InvalidLength);
-         }
-         let (is_list, payload, _) = decode_rlp_item(rlp)?;
-         if !is_list {
-             return Err(RLPDecodeError::MalformedData);
-         }
- 
-         let (is_list, first, first_rest) = decode_rlp_item(payload)?;
-         let first_decoded = if first.is_empty() && is_list {
-             T1::decode(&[RLP_EMPTY_LIST])?
-         } else {
-             T1::decode(payload)?
-         };
- 
-         let (is_list, second, second_rest) = decode_rlp_item(first_rest)?;
-         let second_decoded = if second.is_empty() && is_list {
-             T2::decode(&[RLP_EMPTY_LIST])?
-         } else {
-             T2::decode(first_rest)?
-         };
-         let third_decoded = T3::decode(second_rest)?;
- 
-         Ok((first_decoded, second_decoded, third_decoded))
-     }
- }
+     fn decode_unfinished(rlp: &[u8]) -> Result<(Self, &[u8]), RLPDecodeError> {
+        if rlp.is_empty() {
+            return Err(RLPDecodeError::InvalidLength);
+        }
+        let (is_list, payload, input_rest) = decode_rlp_item(rlp)?;
+        if !is_list {
+            return Err(RLPDecodeError::MalformedData);
+        }
+        let (first, first_rest) = T1::decode_unfinished(payload)?;
+        let (second, second_rest) = T2::decode_unfinished(first_rest)?;
+        let (third, third_rest) = T3::decode_unfinished(second_rest)?;
+        // check that there is no more data to decode after the third element.
+        if !third_rest.is_empty() {
+            return Err(RLPDecodeError::MalformedData);
+        }
+        Ok(((first, second, third), input_rest))
+    }
+}
  
  /// Decodes an RLP item from a slice of bytes.
  /// It returns a 3-element tuple with the following elements:
@@ -477,15 +488,15 @@ mod tests {
     #[test]
     fn test_decode_u256() {
         let rlp = vec![RLP_NULL + 1, 0x01];
-        let decoded = ethereum_types::U256::decode(&rlp).unwrap();
-        let expected = ethereum_types::U256::from(1);
+        let decoded = crate::U256::decode(&rlp).unwrap();
+        let expected = crate::U256::from(1);
         assert_eq!(decoded, expected);
 
         let mut rlp = vec![RLP_NULL + 32];
         let number_bytes = [0x01; 32];
         rlp.extend(number_bytes);
-        let decoded = ethereum_types::U256::decode(&rlp).unwrap();
-        let expected = ethereum_types::U256::from_big_endian(&number_bytes);
+        let decoded = crate::U256::decode(&rlp).unwrap();
+        let expected = crate::U256::from_big_endian(&number_bytes);
         assert_eq!(decoded, expected);
     }
 
@@ -504,6 +515,21 @@ mod tests {
 
     #[test]
     fn test_decode_list_of_lists() {
+        // list of list of numbers
+        let rlp = [
+            RLP_EMPTY_LIST + 6,
+            RLP_EMPTY_LIST + 2,
+            0x01,
+            0x02,
+            RLP_EMPTY_LIST + 2,
+            0x03,
+            0x04,
+        ];
+        let decoded: Vec<Vec<u8>> = Vec::decode(&rlp).unwrap();
+        let expected = vec![vec![1, 2], vec![3, 4]];
+        assert_eq!(decoded, expected);
+
+        // list of list of strings
         let rlp = vec![
             0xd2, 0xc8, 0x83, b'c', b'a', b't', 0x83, b'd', b'o', b'g', 0xc8, 0x83, b'f', b'o',
              b'o', 0x83, b'b', b'a', b'r',
