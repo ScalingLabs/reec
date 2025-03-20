@@ -364,7 +364,10 @@ use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
  /// - The payload of the item.
  /// - The remaining bytes after the item.
  fn decode_bytes(data: &[u8]) -> Result<(&[u8], &[u8]), RLPDecodeError> {
-     let (_, payload, rest) = decode_rlp_item(data)?;
+     let (is_list, payload, rest) = decode_rlp_item(data)?;
+     if is_list {
+        return Err(RLPDecodeError::UnxpectedList);
+     }
      Ok((payload, rest))
  }
  
@@ -625,5 +628,20 @@ mod tests {
         let decoded = <((u8, u8), (u8, u8), (u8, u8))>::decode(&rlp).unwrap();
         let expected = ((1, 2), (3, 4), (5, 6));
         assert_eq!(decoded, expected);
+    }
+
+    #[test]
+    fn test_decode_list_as_string() {
+        // [1, 2, 3, 4] != 0x01020304
+        let rlp = vec![RLP_EMPTY_LIST + 4, 0x01, 0x02, 0x03, 0x04];
+        let decoded: Result<[u8; 4], _> = RLPDecode::decode(&rlp);
+        // it should fail because a list is not a string
+        assert!(decoded.is_err());
+
+        // [1, 2] != 0x0102
+        let rlp = vec![RLP_EMPTY_LIST + 2, 0x01, 0x02];
+        let decoded: Result<u16, _> = RLPDecode::decode(&rlp);
+        // It should fail bcause a list is not a string
+        assert!(decoded.is_err());
     }
 }
