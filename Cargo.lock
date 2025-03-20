@@ -1682,6 +1682,7 @@ dependencies = [
  "keccak-hash",
  "serde",
  "serde_json",
+ "thiserror 1.0.69",
  "tinyvec",
 ]
 

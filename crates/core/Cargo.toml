@@ -9,6 +9,7 @@ ethereum-types.workspace = true
 tinyvec = "1.8.1"
 serde.workspace = true
 serde_json.workspace = true
+thiserror.workspace = true
 keccak-hash = "0.10.0"
 
 [dev-dependencies]
