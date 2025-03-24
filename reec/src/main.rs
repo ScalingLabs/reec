@@ -6,7 +6,7 @@ use std::{
     str::FromStr,
 };
 use clap::Error;
-use tokio::join;
+use tokio::try_join;
 use tracing::Level;
 use tracing_subscriber::FmtSubscriber;
 
@@ -39,7 +39,8 @@ async fn main() {
 
     let rpc_api = reec_rpc::start_api(http_socket_addr, authrpc_socket_addr);
     let networking = reec_net::start_network(udp_socket_addr, tcp_socket_addr);
-    join!(rpc_api, networking);
+    try_join!(tokio::spawn(rpc_api), tokio::spawn(networking)).unwrap();
+}
 
 fn read_genesis_file(genesis_file_path: &str) -> Genesis {
     let genesis_file = std::fs::File::open(genesis_file_path).expect("Failed to open genesis file");
@@ -55,5 +56,4 @@ fn parse_socket_addr(addr: &str, port: &str) -> io::Result<SocketAddr> {
             io::ErrorKind::NotFound,
             "Failed to pairsesockets address",
         ))
-    }
 }
