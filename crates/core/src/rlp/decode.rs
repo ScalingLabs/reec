@@ -300,7 +300,7 @@ use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
  /// - A boolean indicating if the item is a list or not.
  /// - The payload of the item, without its prefix.
  /// - The remaining bytes after the item.
- pub(crate) fn decode_rlp_item(data: &[u8]) -> Result<(bool, &[u8], &[u8]), RLPDecodeError> {
+ pub fn decode_rlp_item(data: &[u8]) -> Result<(bool, &[u8], &[u8]), RLPDecodeError> {
      if data.is_empty() {
          return Err(RLPDecodeError::InvalidLength);
      }
