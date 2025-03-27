@@ -1,6 +1,10 @@
-use reec_core::{Address, Bloom, H256, U256, U64};
+use bytes::Bytes;
+use reec_core::types::{
+    code_hash, Account as ReecAccount, AccountInfo,
+    EIP1559Transaction, LegacyTransaction, Transaction as ReecTransaction,
+};
 
-use revm::primitives::Bytes;
+use reec_core::{types::BlockHeader, Address, Bloom, H256, U256, U64};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -23,6 +27,7 @@ pub struct TestUnit {
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
 pub struct Account {
     pub balance: U256,
+    #[serde(deserialize_with = "deser_hex_str")]
     pub code: Bytes,
     pub nonce: U256,
     pub storage: HashMap<U256, U256>,
@@ -96,6 +101,7 @@ pub struct Block {
 pub struct Transaction {
     #[serde(rename = "type")]
     pub transaction_type: Option<U256>,
+    #[serde(deserialize_with = "deser_hex_str")]
     pub data: Bytes,
     pub gas_limit: U256,
     pub gas_price: Option<U256>,
@@ -111,4 +117,45 @@ pub struct Transaction {
     pub hash: Option<H256>,
     pub sender: Address,
     pub to: Address,
+}
+
+// Conversions between EFtests & Reec types
+
+impl From<Header> for BlockHeader {
+    fn from(val: Header) -> Self {
+        BlockHeader { 
+            parent_hash: val.parent_hash, 
+            ommers_hash: val.uncle_hash, 
+            coinbase: val.coinbase, 
+            state_root: val.state_root, 
+            transactions_root: val.transactions_trie, 
+            receip_root: val.receipt_trie, 
+            logs_bloom: val.bloom.into(), 
+            difficulty: val.difficulty, 
+            number: val.number.as_u64(), 
+            gas_limit: val.gas_limit.as_u64(), 
+            gas_used: val.gas_used.as_u64(), 
+            timestamp: val.timestamp.as_u64(), 
+            extra_data: val.extra_data, 
+            prev_randao: val.extra_data, 
+            nonce: val.mix_hash, 
+            base_fee_per_gas: val.nonce.as_u64(), 
+            withdrawals_root: val.base_fee_per_gas.unwrap().as_u64(), 
+            blob_gas_used: val.blob_gas_used.unwrap().as_u64(), 
+            excess_blob_gas: val.excess_blob_gas.unwrap().as_u64(), 
+            parent_beacon_block_root: val.parent_beacon_block_root.unwrap(),
+        }
+    }
+}
+
+impl From<Transaction> for ReecTransaction {
+    fn from(val: Transaction) -> Self {
+        match val.transaction_type {
+            Some(tx_type) => match tx_type.as_u64() {
+                2 => ReecTransaction::EIP1559Transaction(val.into()),
+                _ => unimplemented!(),
+            },
+            None => ReecTransaction::LegacyTransaction(val.into())
+        }
+    }
 }
