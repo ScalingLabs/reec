@@ -2,16 +2,36 @@ use crate::rlp::{encode::RLPEncode, structs::Encoder};
 use crate::types::Bloom;
 use bytes::Bytes;
 use ethereum_types::{Address, H256};
+use super::TxType;
 pub type Index = u64;
 
 
 /// Result of a transaction
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Receipt {
+    tx_type: TxType,
     succeeded: bool,
     cummulative_gas_used: u64,
     bloom: Bloom,
     logs: Vec<Log>,
+}
+
+impl Receipt {
+    pub fn new(
+        tx_type: TxType,
+        succeeded: bool,
+        cummulative_gas_used: u64,
+        bloom: Bloom,
+        logs: Vec<Log>,
+    ) -> Self {
+        Self {
+            tx_type,
+            succeeded,
+            cummulative_gas_used,
+            bloom,
+            logs,
+        }
+    }
 }
 
 impl RLPEncode for Receipt {
