@@ -7,7 +7,7 @@ use std::{
 };
 use clap::Error;
 use tokio::try_join;
-use tracing::Level;
+use tracing::{warn, Level};
 use tracing_subscriber::FmtSubscriber;
 
 mod cli;
@@ -27,8 +27,10 @@ async fn main() {
     let udp_addr = matches.get_one::<String>("discovery.addr").expect("discovery.addr is required");
     let udp_port = matches.get_one::<String>("discovery.port").expect("discovery port is required");
     let genesis_file_path = matches.get_one::<String>("network").expect("network is required");
-    let bootnode_list: Vec<_> = matches.get_many::<String>("bootnodes").expect("bootnodes is required").collect();
-    let _bootnodes: Vec<BootNode> = bootnode_list.iter().map(|s| BootNode::from_str(s).expect("Failed to parse bootnodes")).collect();
+    let bootnodes: Vec<&BootNode> = matches.get_many("bootnodes").map(Iterator::collect).unwrap_or_default();
+    if bootnodes.is_empty() {
+        warn!("No bootnodes specified. This node will not be able to connect to the network.");
+    }
 
     let http_socket_addr = parse_socket_addr(http_addr, http_port).expect("Failed to parse http address and port");
     let authrpc_socket_addr = parse_socket_addr(&authrpc_addr, &authrpc_port).expect("Failed to parse authrpc address and port");
