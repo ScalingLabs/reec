@@ -30,6 +30,41 @@ pub fn execute_tx(
     spec_id: SpecId,
 ) -> ExecutionResult {
     let block_env = block_env(header);
+    let tx_env = tx_env(tx);
+    let cache_state = cache_state(pre);
+    let mut state = revm::db::State::builder()
+        .with_cached_prestate(cache_state)
+        .with_bundle_update()
+        .build();
+    let mut evm = Evm::builder()
+        .with_db(&mut state)
+        .with_block_env(block_env)
+        .with_tx_env(tx_env)
+        .with_spec_id(spec_id)
+        .reset_handler()
+        .with_external_context(TracerEip3155::new(Box::new(std::io::stderr())).without_summary())
+        .append_handler_register(inspector_handle_register).build();
+    let tx_result = evm.transact().unwrap();
+    tx_result.result.into()
+}   
+
+fn cache_state(pre: &HashMap<Address, Account>) -> CacheState {
+    let mut cache_state = revm::CacheState::new(false);
+    for (address, account) in pre {
+        let acct_info = RevmAccountInfo {
+            balance: U256::from_limbs(account.info.balance.0),
+            code_hash: account.info.code_hash.0.into(),
+            code: Some(Bytecode::new_raw(account.code.clone().into())),
+            nonce: account.info.nonce,
+        };
+
+        let mut storage = HashMap::new();
+        for (k, v) in &account.storage {
+            storage.insert(U256::from_be_bytes(k.0), U256::from_be_bytes(v.0));
+        }
+        cache_state.insert_account_with_storage(address.to_fixed_bytes().into(), acct_info, storage);
+    }
+    cache_state
 }
 
 fn block_env(header: &BlockHeader) -> BlockEnv {

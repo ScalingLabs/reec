@@ -119,32 +119,6 @@ impl Transaction {
     }
 }
 
-    // pub fn value(&self) -> U256 {
-    //     match self {
-    //         Transaction::LegacyTransaction(tx) => tx.value,
-    //         Transaction::EIP1559Transaction(tx) => tx.amount,
-    //     }
-    // }
-
-    // pub fn encode_with_type(&self, buf: &mut dyn bytes::BufMut) {
-    //     // tx_type || RLP(tx) if tx_type != 0
-    //     // RLP(tx) else
-    //     match self {
-    //         // Legacy transactions don't have a prefix
-    //         Transaction::LegacyTransaction(_) => {}
-    //         _ => buf.put_u8(self.tx_type() as u8),
-    //     }
-    //     self.encode(buf);
-    // }
-
-    // pub fn tx_type(&self) -> TxType {
-    //     match self {
-    //         Transaction::LegacyTransaction(_) => TxType::Legacy,
-    //         Transaction::EIP1559Transaction(_) => TxType::EIP1559,
-    //     }
-    // }
-
-
 fn recover_address(
     signature_r: &U256,
     signature_s: &U256,

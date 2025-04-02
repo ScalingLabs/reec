@@ -5,7 +5,7 @@ use reec_core::types::{
 };
 
 use reec_core::{types::BlockHeader, Address, Bloom, H256, U256, U64};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::HashMap;
 
 #[derive(Debug, Deserialize)]
@@ -158,4 +158,76 @@ impl From<Transaction> for ReecTransaction {
             None => ReecTransaction::LegacyTransaction(val.into())
         }
     }
+}
+
+impl From<Transaction> for EIP1559Transaction {
+    fn from(val: Transaction) -> Self {
+        EIP1559Transaction {
+            // Note: gas_price is not used in this conversation as it is not part of EIP1559Transaction, this could be a problem
+            chain_id: val.chain_id.map(|id| id.as_u64()).unwrap_or(1), // TODO: Consider converting this into Option
+            signer_nonce: val.nonce.as_u64(),
+            max_priority_fee_per_gas: val.max_priority_fee_per_gas.unwrap_or_default().as_u64(), // TODO: Consider converting this into Option
+            max_fee_per_gas: val.max_fee_per_gas.unwrap_or(val.gas_price.unwrap_or_default()).as_u64(), // TODO: Consider converting this into Option
+            gas_limit: val.gas_limit.as_u64(),
+            destination: val.to,
+            amount: val.value,
+            payload: val.data,
+            access_list: val.access_list.unwrap_or_default().into_iter().map(|item|(item.address, item.storage_keys)).collect(),
+            signature_y_parity: val.v.as_u64().saturating_sub(27) != 0,
+            signature_r: val.r,
+            signature_s: val.s,
+        }
+    }
+}
+
+impl From<Transaction> for LegacyTransaction {
+    fn from(val: Transaction) -> Self {
+        LegacyTransaction {
+            nonce: val.nonce.as_u64(),
+            gas_price: val.gas_price.unwrap_or_default().as_u64(), // TODO: Consider converting this into Option
+            gas: val.gas_limit.as_u64(),
+            to: reec_core::types::TxKind::Call(val.to),
+            value: val.value,
+            data: val.data,
+            v: val.v,
+            r: val.r,
+            s: val.s,
+        }
+    }
+}
+
+impl From<Account> for ReecAccount {
+    fn from(value: Account) -> Self {
+        ReecAccount  {
+            info: AccountInfo { 
+                code_hash: code_hash(&val.code), 
+                balance: val.balance, 
+                nonce: val.nonce.as_u64(), 
+            },
+            code: val.code,
+            storage: val
+                .storage
+                .into_iter()
+                .map(|(k, v)| {
+                    let mut k_bytes = [0; 32];
+                    let mut v_bytes = [0; 32];
+                    k.to_big_endian(&mut k_bytes);
+                    v.to_big_endian(&mut v_bytes);
+                    (H256(k_bytes), H256(v_bytes))
+                })
+                .collect(),
+        }
+    }
+}
+
+// Serde utils
+use serde::de::Error;
+
+pub fn deser_hex_str<'de, D>(d: D) -> Result<Bytes, D::Error>
+where 
+    D: Deserializer<'de>,
+{
+    let value = String::deserialize(d)?;
+    let bytes = hex::decode(value.trim_start_matches("0x")).map_err(|e|D::Error::custom(e.to_string()))?;
+    Ok(Bytes::from(bytes))
 }

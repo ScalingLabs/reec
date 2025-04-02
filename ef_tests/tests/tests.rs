@@ -1,6 +1,9 @@
-use ::ef_tests::{evm::execute_transaction, types::TestUnit};
+// use ::ef_tests::{evm::execute_transaction, types::TestUnit};
+use ::ef_tests::types::TestUnit;
+use reec_core::evm::{execute_tx, SpecId};
 
 fn execute_test(test: TestUnit) {
+    // TODO: Add support for multiple blocks and multiple transactions per block
     let transaction = test
         .blocks
         .first()
@@ -10,7 +13,22 @@ fn execute_test(test: TestUnit) {
         .unwrap()
         .first()
         .unwrap();
-    execute_transaction(&test.genesis_block_header, transaction, test.pre);
+    let pre = test.pre.into_iter().map(|(k, v)| (k, v.into())).collect();
+    assert!(execute_tx(
+        &transaction.clone().into(), 
+        &test
+            .blocks
+            .first()
+            .as_ref()
+            .unwrap()
+            .block_header
+            .clone()
+            .unwrap()
+            .into(), 
+        &pre, 
+        SpecId::CANCUN,
+    )
+    .is_success());
 }
 
 #[cfg(test)]
@@ -23,6 +41,15 @@ mod ef_tests {
     #[test]
     fn add11_test() {
         let s: String = std::fs::read_to_string("./vectors/add11.json").expect("Unable to read file");
+        let tests: HashMap<String, TestUnit> = serde_json::from_str(&s).expect("Unable to parse JSON");
+        for (_k, test) in tests {
+            execute_test(test);
+        }
+    }
+
+    #[test]
+    fn solidity_example_test() {
+        let s: String = std::fs::read_to_string("./vectors/solidityExample.json").expect("Unable to read file");
         let tests: HashMap<String, TestUnit> = serde_json::from_str(&s).expect("Unable to parse JSON");
         for (_k, test) in tests {
             execute_test(test);
