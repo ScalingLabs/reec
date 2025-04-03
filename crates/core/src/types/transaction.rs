@@ -23,6 +23,26 @@ pub enum TxType {
 }
 
 impl Transaction {
+    pub fn encode_with_type(&self, buf: &mut dyn bytes::BufMut) {
+        // tx_type || RLP(tx) if tx_type != 0
+        // RLP(tx) else
+        match self {
+            // Legacy transactions don't have a prefix
+            Transaction::LegacyTransaction(_) => {}
+            _ => buf.put_u8(self.tx_type() as u8),
+        }
+        self. encode(buf);
+    }
+
+    pub fn tx_type(&self) -> TxType {
+        match self {
+            Transaction::LegacyTransaction(_) => TxType::Legacy,
+            Transaction::EIP1559Transaction(_) => TxType::EIP1559,
+        }
+    }
+}
+
+impl Transaction {
     pub fn sender(&self) -> Address {
         match self {
             Transaction::LegacyTransaction(tx) => {
@@ -42,20 +62,19 @@ impl Transaction {
                 recover_address(&tx.r, &tx.s, signature_y_parity, &Bytes::from(buf))
             }
             Transaction::EIP1559Transaction(tx) => {
-                let mut buf = vec![];
+                let mut buf = vec![self.tx_type() as u8];
                 Encoder::new(&mut buf)
+                    .encode_field(&tx.chain_id)
                     .encode_field(&tx.signer_nonce)
                     // TODO: The following two fields are not part of EIP1559Transaction, other fields were used instead
                     // consider adding them
+                    .encode_field(&tx.max_priority_fee_per_gas)
                     .encode_field(&tx.max_fee_per_gas)
                     .encode_field(&tx.gas_limit)
                     .encode_field(&tx.destination)
                     .encode_field(&tx.amount)
                     .encode_field(&tx.payload)
-                    .encode_field(&tx.payload)
-                    .encode_field(&tx.chain_id)
-                    .encode_field(&0_u64)
-                    .encode_field(&0_u64)
+                    .encode_field(&tx.access_list)
                     .finish();
                 recover_address(&tx.signature_r, &tx.signature_s, tx.signature_y_parity, &Bytes::from(buf),)
             }
