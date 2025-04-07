@@ -3,7 +3,7 @@ use ethereum_types::{Address, Bloom};
 use keccak_hash::H256;
 use serde::{Deserialize, Serialize};
 
-use crate::{rlp::error::RLPDecodeError, serde_utils};
+use crate::rlp::decode::RLPDecode;
 
 use crate::types::{
     BlockBody, BlockHeader, EIP1559Transaction, LegacyTransaction, Transaction, Withdrawal, DEFAULT_OMMERS_HASH,
@@ -70,15 +70,17 @@ impl EncodedTransaction {
                 let tx_bytes = &self.0.as_ref()[1..];
                 match *tx_type {
                     // Legacy
-                    0x0 => {
-                        LegacyTransaction::decode_rlp(tx_bytes).map(Transaction::LegacyTransaction)
+                    0x0 => 
+                        LegacyTransaction::decode(tx_bytes).map(Transaction::LegacyTransaction),
+                    
+                    0x2 => {
+                        EIP1559Transaction::decode(tx_bytes).map(Transaction::EIP1559Transaction)
                     }
-                    0x2 => EIP1559Transaction::decode_rlp(tx_bytes).map(Transaction::EIP1559Transaction),
                     _ => unimplemented!("We don't know this tx type yet"),
                 }
             }
             // LegacyTransaction
-            _ => LegacyTransaction::decode_rlp(self.0.as_ref()).map(Transaction::LegacyTransaction),
+            _ => LegacyTransaction::decode(self.0.as_ref()).map(Transaction::LegacyTransaction),
         }
     }
 }
