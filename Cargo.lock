@@ -1801,6 +1801,7 @@ name = "reec-rpc"
 version = "0.1.0"
 dependencies = [
  "axum",
+ "reec-core",
  "serde",
  "serde_json",
  "tokio",

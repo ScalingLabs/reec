@@ -4,7 +4,7 @@ use serde_json::Value;
 use tracing::info;
 use tokio::net::TcpListener;
 
-use engine::ExchangeCapabilitiesRequest;
+use engine::{ExchangeCapabilitiesRequest, NewPayloadV3Request};
 use eth::{block, client};
 use utils::{RpcErr, RpcErrorMetadata, RpcErrorResponse, RpcRequest, RpcSuccessResponse};
 
@@ -67,13 +67,7 @@ pub fn map_requests(req: &RpcRequest) -> Result<Value, RpcErr> {
         "eth_getBlockByNumber" => block::get_block_by_number(),
         "engine_forkchoiceUpdatedV3" => engine::forkchoice_Updated_V3(),
         "engine_newPayloadV3" => {
-            let block = req
-                .params
-                .as_ref()
-                .ok_or(RpcErr::BadParams)?
-                .first()
-                .ok_or(RpcErr::BadParams)?;
-        engine::new_payload_v3(block)
+            let request = parse_new
         }
         _ => Err(RpcErr::MethodNotFound)
     }
@@ -98,6 +92,20 @@ where E: Into<RpcErrorMetadata>
             }).unwrap(),
         )
     }
+}
+
+fn parse_new_payload_v3_request(params: &[Value]) -> Result<NewPayloadV3Request, RpcErr> {
+    if params.len() != 3 {
+        return Err(RpcErr::BadParams);
+    }
+    let payload = serde_json::from_value(params[0].clone()).map_err(|_| RpcErr::BadParams)?;
+    let expected_blob_versioned_hashes = serde_json::from_value(params[1].clone()).map_err(|_| RpcErr::BadParams)?;
+    let parent_beacon_block_root = serde_json::from_value(params[2].clone()).map_err(|_| RpcErr::BadParams)?;
+    Ok(NewPayloadV3Request { 
+        payload, 
+        expected_blob_versioned_hashes, 
+        parent_beacon_block_root, 
+    })
 }
 
 

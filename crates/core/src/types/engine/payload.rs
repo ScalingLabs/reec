@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use crate::rlp::decode::RLPDecode;
 
 use crate::types::{
-    BlockBody, BlockHeader, EIP1559Transaction, LegacyTransaction, Transaction, Withdrawal, DEFAULT_OMMERS_HASH,
+    compute_withdrawals_root, BlockBody, BlockHeader, EIP1559Transaction, LegacyTransaction, Transaction, Withdrawal, DEFAULT_OMMERS_HASH,
 };
 
 #[allow(unused)]
@@ -31,7 +31,7 @@ pub struct ExecutionPayloadV3 {
     extra_data: Bytes,
     #[serde(deserialize_with = "crate::serde_utils::u64::deser_hex_str")]
     base_fee_per_gas: u64,
-    block_hash: H256,
+    pub block_hash: H256,
     transactions: Vec<EncodedTransaction>,
     withdrawals: Vec<Withdrawal>,
     #[serde(deserialize_with = "crate::serde_utils::u64::deser_hex_str")]
@@ -117,7 +117,7 @@ impl ExecutionPayloadV3 {
                 prev_randao: self.prev_randao,
                 nonce: 0,
                 base_fee_per_gas: self.base_fee_per_gas,
-                withdrawals_root: H256::zero(),
+                withdrawals_root: compute_withdrawals_root(&block_body.withdrawals),
                 blob_gas_used: self.blob_gas_used,
                 excess_blob_gas: self.excess_blob_gas,
                 parent_beacon_block_root,
@@ -131,9 +131,9 @@ impl ExecutionPayloadV3 {
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PayloadStatus {
-    status: PayloadValidationStatus,
-    latest_valid_hash: H256,
-    validation_error: Option<String>,
+    pub status: PayloadValidationStatus,
+    pub latest_valid_hash: H256,
+    pub validation_error: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
