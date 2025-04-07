@@ -27,7 +27,7 @@ async fn main() {
     let udp_addr = matches.get_one::<String>("discovery.addr").expect("discovery.addr is required");
     let udp_port = matches.get_one::<String>("discovery.port").expect("discovery port is required");
     let genesis_file_path = matches.get_one::<String>("network").expect("network is required");
-    let bootnodes: Vec<&BootNode> = matches.get_many("bootnodes").map(Iterator::collect).unwrap_or_default();
+    let bootnodes: Vec<BootNode> = matches.get_many("bootnodes").map(Iterator::copied).map(Iterator::collect).unwrap_or_default();
     if bootnodes.is_empty() {
         warn!("No bootnodes specified. This node will not be able to connect to the network.");
     }
@@ -40,7 +40,7 @@ async fn main() {
     let _genesis = read_genesis_file(genesis_file_path);
 
     let rpc_api = reec_rpc::start_api(http_socket_addr, authrpc_socket_addr);
-    let networking = reec_net::start_network(udp_socket_addr, tcp_socket_addr);
+    let networking = reec_net::start_network(udp_socket_addr, tcp_socket_addr, bootnodes);
     try_join!(tokio::spawn(rpc_api), tokio::spawn(networking)).unwrap();
 }
 

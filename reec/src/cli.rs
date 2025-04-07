@@ -1,4 +1,5 @@
 use clap::{Arg, ArgAction, Command};
+use reec_net::types::BootNode;
 
 pub fn cli() -> Command {
     Command::new("REEC")
@@ -70,8 +71,8 @@ pub fn cli() -> Command {
         .arg(
             Arg::new("bootnodes")
                 .long("bootnodes")
-                // .default_value("")
                 .value_name("BOOTNODE_LIST")
+                .value_parser(clap::value_parser!(BootNode))
                 .value_delimiter(',')
                 .num_args(1..)
                 .action(ArgAction::Set),
