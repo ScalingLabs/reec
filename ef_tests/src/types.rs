@@ -5,7 +5,7 @@ use reec_core::types::{
 };
 
 use reec_core::{types::BlockHeader, Address, Bloom, H256, U256, U64};
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 #[derive(Debug, Deserialize)]
@@ -27,7 +27,7 @@ pub struct TestUnit {
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
 pub struct Account {
     pub balance: U256,
-    #[serde(deserialize_with = "deser_hex_str")]
+    #[serde(deserialize_with = "reec_core::serde_utils::bytes::deser_hex_str")]
     pub code: Bytes,
     pub nonce: U256,
     pub storage: HashMap<U256, U256>,
@@ -101,7 +101,7 @@ pub struct Block {
 pub struct Transaction {
     #[serde(rename = "type")]
     pub transaction_type: Option<U256>,
-    #[serde(deserialize_with = "deser_hex_str")]
+    #[serde(deserialize_with = "reec_core::serde_utils::bytes::deser_hex_str")]
     pub data: Bytes,
     pub gas_limit: U256,
     pub gas_price: Option<U256>,
@@ -218,16 +218,4 @@ impl From<Account> for ReecAccount {
                 .collect(),
         }
     }
-}
-
-// Serde utils
-use serde::de::Error;
-
-pub fn deser_hex_str<'de, D>(d: D) -> Result<Bytes, D::Error>
-where 
-    D: Deserializer<'de>,
-{
-    let value = String::deserialize(d)?;
-    let bytes = hex::decode(value.trim_start_matches("0x")).map_err(|e|D::Error::custom(e.to_string()))?;
-    Ok(Bytes::from(bytes))
 }
