@@ -7,7 +7,7 @@ use reec_core::H512;
 use keccak_hash::H256;
 use k256::elliptic_curve::sec1::ToEncodedPoint;
 use k256::elliptic_curve::PublicKey;
-use discv4::{Endpoint, Message, PingMessage, FindNodeMessage, PongMessage};
+use discv4::{Endpoint, Message, PingMessage, FindNodeMessage, PongMessage, Packet};
 use k256::{ecdsa::SigningKey, elliptic_curve::rand_core::OsRng};
 use tokio::{
     net::{tcp, TcpSocket, UdpSocket},
@@ -51,11 +51,12 @@ async fn discover_peers(udp_addr: SocketAddr, bootnodes: Vec<BootNode>) {
                 info!("Received NEIGHBOURS message from {from}");
             }
             _ => {
-                let msg = Message::decode_with_header(&buf[..read]).unwrap();
+                let packet = Packet::decode(&buf[..read]).unwrap();
+                let msg = packet.get_message();
                 info!("Received {read} byes from {from}");
                 info!("Message: {:?}", msg);
                 if let Message::Ping(_) = msg {
-                    let ping_hash = H256::from_slice(Message::get_hash(&buf[..read]));
+                    let ping_hash = packet.get_hash();
                     pong(&udp_socket, from, ping_hash, &signer).await;
                     find_node(&udp_socket, from, &signer).await;
                 }
