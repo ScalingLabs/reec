@@ -1,6 +1,7 @@
 mod block;
 mod account;
 mod receipt;
+mod world_state;
 
 use account::{AccountInfoRLP, AddressRLP, AccountStorageKeyRLP, AccountStorageValueRLP, AccountCodeHashRLP, AccountCodeRLP};
 use block::{BlockHeaderRLP, BlockBodyRLP};
@@ -30,7 +31,7 @@ table!(
 
 dupsort!(
     /// Account storages table
-    ( AccountStorages ) AddressRLP[AccountStorageKeyRLP] => AccountStorageValueRLP
+    ( AccountStorages ) AddressRLP => (AccountStorageValueRLP, AccountStorageValueRLP) [AccountStorageKeyRLP]
 );
 
 table!(
