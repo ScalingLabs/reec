@@ -11,6 +11,7 @@ use crate::rlp::{
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Transaction {
     LegacyTransaction(LegacyTransaction),
+    EIP2930Transaction(EIP2930Transaction),
     EIP1559Transaction(EIP1559Transaction),
 }
 
@@ -37,6 +38,7 @@ impl Transaction {
     pub fn tx_type(&self) -> TxType {
         match self {
             Transaction::LegacyTransaction(_) => TxType::Legacy,
+            Transaction::EIP2930Transaction(_) => TxType::EIP2930,
             Transaction::EIP1559Transaction(_) => TxType::EIP1559,
         }
     }
@@ -61,6 +63,27 @@ impl Transaction {
                     .finish();
                 recover_address(&tx.r, &tx.s, signature_y_parity, &Bytes::from(buf))
             }
+            Transaction::EIP2930Transaction(tx) => {
+                let mut buf = vec![self.tx_type() as u8];
+                Encoder::new(&mut buf)
+                    .encode_field(&tx.nonce)
+                    .encode_field(&tx.gas_price)
+                    .encode_field(&tx.gas_limit)
+                    .encode_field(&tx.to)
+                    .encode_field(&tx.value)
+                    .encode_field(&tx.data)
+                    .encode_field(&tx.access_list)
+                    .encode_field(&tx.signature_y_parity)
+                    .encode_field(&tx.signature_r)
+                    .encode_field(&tx.signature_s)
+                    .finish();
+                recover_address(
+                    &tx.signature_r, 
+                    &tx.signature_s, 
+                    tx.signature_y_parity, 
+                    &Bytes::from(buf)
+                )
+            }
             Transaction::EIP1559Transaction(tx) => {
                 let mut buf = vec![self.tx_type() as u8];
                 Encoder::new(&mut buf)
@@ -84,6 +107,7 @@ impl Transaction {
     pub fn gas_limit(&self) -> u64 {
         match self {
             Transaction::LegacyTransaction(tx) => tx.gas,
+            Transaction::EIP2930Transaction(tx) => tx.gas_limit,
             Transaction::EIP1559Transaction(tx) => tx.gas_limit,
         }
     }
@@ -91,6 +115,7 @@ impl Transaction {
     pub fn gas_price(&self) -> u64 {
         match self {
             Transaction::LegacyTransaction(tx) => tx.gas_price,
+            Transaction::EIP2930Transaction(tx) => tx.gas_price,
             Transaction::EIP1559Transaction(tx) => tx.max_fee_per_gas,
         }
     }
@@ -98,6 +123,7 @@ impl Transaction {
     pub fn to(&self) -> TxKind {
         match self {
             Transaction::LegacyTransaction(tx) => tx.to.clone(),
+            Transaction::EIP2930Transaction(tx) => tx.to.clone(),
             Transaction::EIP1559Transaction(tx) =>TxKind::Call(tx.destination),
         }
     }
@@ -105,6 +131,7 @@ impl Transaction {
     pub fn max_priority_fee(&self) -> Option<u64> {
         match self {
             Transaction::LegacyTransaction(_tx) => None,
+            Transaction::EIP2930Transaction(tx) => None,
             Transaction::EIP1559Transaction(tx) => Some(tx.max_priority_fee_per_gas),
         }
     }
@@ -112,6 +139,7 @@ impl Transaction {
     pub fn chain_id(&self) -> Option<u64> {
         match self {
             Transaction::LegacyTransaction(_tx) => None,
+            Transaction::EIP2930Transaction(tx) => Some(tx.chain_id),
             Transaction::EIP1559Transaction(tx) => Some(tx.chain_id),
         }
     }
@@ -119,6 +147,7 @@ impl Transaction {
     pub fn access_list(&self) -> Vec<(Address, Vec<H256>)> {
         match self {
             Transaction::LegacyTransaction(_tx) => Vec::new(),
+            Transaction::EIP2930Transaction(tx) => tx.access_list.clone(),
             Transaction::EIP1559Transaction(tx) => tx.access_list.clone(),
         }
     }
@@ -126,6 +155,7 @@ impl Transaction {
     pub fn nonce(&self) -> u64 {
         match self {
             Transaction::LegacyTransaction(tx) => tx.nonce,
+            Transaction::EIP2930Transaction(tx) => tx.nonce,
             Transaction::EIP1559Transaction(tx) => tx.signer_nonce,
         }
     }
@@ -133,6 +163,7 @@ impl Transaction {
     pub fn data(&self) -> &Bytes {
         match self {
             Transaction::LegacyTransaction(tx) => &tx.data,
+            Transaction::EIP2930Transaction(tx) => &tx.data,
             Transaction::EIP1559Transaction(tx) => &tx.payload,
         }
     }
@@ -208,6 +239,21 @@ pub struct LegacyTransaction {
     s: U256,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct EIP2930Transaction {
+    pub chain_id: u64,
+    pub nonce: u64,
+    pub gas_price: u64,
+    pub gas_limit: u64,
+    pub to: TxKind,
+    pub value: U256,
+    pub data: Bytes,
+    pub access_list: Vec<(Address, Vec<H256>)>,
+    pub signature_y_parity: bool,
+    pub signature_r: U256,
+    pub signature_s: U256,
+}
+
 impl RLPEncode for LegacyTransaction {
     fn encode(&self, buf: &mut dyn bytes::BufMut) {
         Encoder::new(buf)
@@ -220,6 +266,24 @@ impl RLPEncode for LegacyTransaction {
             .encode_field(&self.v)
             .encode_field(&self.r)
             .encode_field(&self.s)
+            .finish();
+    }
+}
+
+impl RLPEncode for EIP2930Transaction {
+    fn encode(&self, buf: &mut dyn bytes::BufMut) {
+        Encoder::new(buf)
+            .encode_field(&self.chain_id)
+            .encode_field(&self.nonce)
+            .encode_field(&self.gas_price)
+            .encode_field(&self.gas_limit)
+            .encode_field(&self.to)
+            .encode_field(&self.value)
+            .encode_field(&self.data)
+            .encode_field(&self.access_list)
+            .encode_field(&self.signature_y_parity)
+            .encode_field(&self.signature_r)
+            .encode_field(&self.signature_s)
             .finish();
     }
 }
@@ -247,6 +311,36 @@ impl RLPDecode for LegacyTransaction {
             v, 
             r, 
             s,
+        };
+        Ok((tx, decoder.finish()?))
+    }
+}
+
+impl RLPDecode for EIP2930Transaction {
+    fn decode_unfinished(rlp: &[u8]) -> Result<(EIP2930Transaction, &[u8]), RLPDecodeError> {
+        let decoder = Decoder::new(rlp)?;
+        let (chain_id, decoder) = decoder.decode_field("chain_id")?;
+        let (nonce, decoder) = decoder.decode_field("nonce")?;
+        let (gas_price, decoder) = decoder.decode_field("gas_price")?;
+        let (to, decoder) = decoder.decode_field("to")?;
+        let (value, decoder) = decoder.decode_field("value")?;
+        let (data, decoder) = decoder.decode_field("data")?;
+        let (access_list, decoder) = decoder.decode_field("access_list")?;
+        let (signature_y_parity, decoder) = decoder.decode_field("signature_y_parity")?;
+        let (signature_r, decoder) = decoder.decode_field("signature_s")?;
+        let (signature_s, decoder) = decoder.decode_field("signature_s")?;
+
+        let tx = EIP2930Transaction {
+            chain_id,
+            nonce,
+            gas_price,
+            to,
+            value,
+            data,
+            access_list,
+            signature_y_parity,
+            signature_r,
+            signature_s
         };
         Ok((tx, decoder.finish()?))
     }

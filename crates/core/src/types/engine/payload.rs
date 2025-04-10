@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use crate::rlp::decode::RLPDecode;
 
 use crate::types::{
-    compute_withdrawals_root, BlockBody, BlockHeader, EIP1559Transaction, LegacyTransaction, Transaction, Withdrawal, DEFAULT_OMMERS_HASH,
+    compute_withdrawals_root, BlockBody, BlockHeader, EIP1559Transaction, LegacyTransaction, EIP2930Transaction,Transaction, Withdrawal, DEFAULT_OMMERS_HASH,
 };
 
 #[allow(unused)]
@@ -71,8 +71,12 @@ impl EncodedTransaction {
                 match *tx_type {
                     // Legacy
                     0x0 => 
-                        LegacyTransaction::decode(tx_bytes).map(Transaction::LegacyTransaction),
-                    
+                        LegacyTransaction::decode(tx_bytes).map(Transaction::LegacyTransaction), // TODO: Check if this is a real case scenario
+                    // EIP2930
+                    0x1 => {
+                        EIP2930Transaction::decode(tx_bytes).map(Transaction::EIP2930Transaction(()))
+                    }
+                    // EIP1559
                     0x2 => {
                         EIP1559Transaction::decode(tx_bytes).map(Transaction::EIP1559Transaction)
                     }
