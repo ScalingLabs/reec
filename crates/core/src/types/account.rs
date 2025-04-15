@@ -9,14 +9,14 @@ use super::GenesisAccount;
 
 
 #[allow(unused)]
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Account {
     pub info: AccountInfo,
     pub code: Bytes,
     pub storage: HashMap<H256, H256>,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct AccountInfo {
     pub code_hash: H256,
     pub balance: U256,

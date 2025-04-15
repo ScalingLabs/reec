@@ -22,7 +22,7 @@ reec-rpc = { path = "./crates/rpc" }
 reec-storage = { path = "./crates/storage" }
 
 ethereum-types = "0.14.1"
-tracing = "0.1"
+tracing = { version = "0.1", features = ["log"] }
 tracing-subscriber = "0.3.0"
 serde = {version = "1.0.203", features = ["derive"]}
 serde_json = "1.0.117"
