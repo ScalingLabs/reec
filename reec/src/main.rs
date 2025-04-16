@@ -1,5 +1,5 @@
 use reec_core::types::Genesis;
-use reec_net::types::BootNode;
+use reec_net::bootnode::BootNode;
 use std::{
     io::{self, BufReader},
     net::{SocketAddr, ToSocketAddrs},

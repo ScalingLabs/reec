@@ -1,5 +1,8 @@
+pub mod bootnode;
 pub(crate) mod discv4;
+pub(crate) mod kademlia;
 
+use std::vec;
 use std::{
     net::SocketAddr, time::{Duration, SystemTime, UNIX_EPOCH}
 };
@@ -14,8 +17,9 @@ use tokio::{
     try_join,
 };
 use tracing::info;
-use types::BootNode;
-pub mod types;
+
+use bootnode::BootNode;
+use kademlia::{KademliaTable, PeerData};
 
 const MAX_DISC_PACKET_SIZE: usize = 1280;
 
@@ -31,8 +35,10 @@ pub async fn start_network(udp_addr: SocketAddr, tcp_addr: SocketAddr, bootnodes
 
 async fn discover_peers(udp_addr: SocketAddr, bootnodes: Vec<BootNode>) {
     let udp_socket = UdpSocket::bind(udp_addr).await.unwrap();
-    // This is just a placeholder example. The address is a known bootnode.
     let signer = SigningKey::random(&mut OsRng);
+    let public_key = PublicKey::from(signer.verifying_key());
+    let encoded = public_key.to_encoded_point(false);
+    let local_node_id = H512::from_slice(&encoded.as_bytes()[1..]);
     let bootnode = match bootnodes.first() {
         Some(b) => b,
         None => {
@@ -43,16 +49,30 @@ async fn discover_peers(udp_addr: SocketAddr, bootnodes: Vec<BootNode>) {
     ping(&udp_socket, udp_addr, bootnode.socket_address, &signer).await;
 
     let mut buf = vec![0; MAX_DISC_PACKET_SIZE];
+    let mut table = KademliaTable::new(local_node_id);
     loop {
         let (read, from) = udp_socket.recv_from(&mut buf).await.unwrap();
         let packet = Packet::decode(&buf[..read]).unwrap();
         let msg = packet.get_message();
         info!("Received {read} bytes from {from}");
         info!("Message: {:?}", msg);
-        if let Message::Ping(_) = msg {
-            let ping_hash = packet.get_hash();
-            pong(&udp_socket, from, ping_hash, &signer).await;
-            find_node(&udp_socket, from, &signer).await;
+        
+        match msg {
+            Message::Ping(_) => {
+                let ping_hash = packet.get_hash();
+                pong(&udp_socket, from, ping_hash, &signer).await;
+                find_node(&udp_socket, from, &signer).await;
+            }
+            Message::Neighbors(neighbors_msg) => {
+                let nodes = &neighbors_msg.nodes;
+                for node in nodes {
+                    let peer_data = PeerData::from(*node);
+                    table.insert(peer_data);
+                    let node_addr = SocketAddr::new(node.ip, node.udp_port);
+                    ping(&udp_socket, udp_addr, node_addr, &signer).await;
+                }
+            }
+            _ => {}
         }
     }
 }
@@ -111,4 +131,19 @@ async fn pong(socket: &UdpSocket, to_addr: SocketAddr, ping_hash: H256, signer: 
 async fn serve_requests(tcp_addr: SocketAddr) {
     let tcp_socket = TcpSocket::new_v4().unwrap();
     tcp_socket.bind(tcp_addr).unwrap();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use kademlia::bucket_number;
+    use std::str::FromStr;
+    #[test]
+    fn bucket_number_works_as_expected() {
+        let node_id_1 = H512::from_str("4dc429669029ceb17d6438a35c80c29e09ca2c25cc810d690f5ee690aa322274043a504b8d42740079c4f4cef50777c991010208b333b80bee7b9ae8e5f6b6f0").unwrap();
+        let node_id_2 = H512::from_str("034ee575a025a661e19f8cda2b6fd8b2fd4fe062f6f2f75f0ec3447e23c1bb59beb1e91b2337b264c7386150b24b621b8224180c9e4aaf3e00584402dc4a8386").unwrap();
+        let expected_bucket = 255;
+        let result = bucket_number(node_id_1, node_id_2);
+        assert_eq!(result, expected_bucket);
+    }
 }

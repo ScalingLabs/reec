@@ -1,5 +1,5 @@
 use clap::{Arg, ArgAction, Command};
-use reec_net::types::BootNode;
+use reec_net::bootnode::BootNode;
 
 pub fn cli() -> Command {
     Command::new("REEC")
