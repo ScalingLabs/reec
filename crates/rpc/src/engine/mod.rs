@@ -41,7 +41,7 @@ pub fn new_payload_v3(request: NewPayloadV3Request) -> Result<PayloadStatus, Rpc
     let block_hash = request.payload.block_hash;
     info!("Received new payload with block hash: {}", block_hash);
 
-    let (block_header, _block_body) = 
+    let (block_header, block_body) = 
         match request.payload.into_block(request.parent_beacon_block_root) {
         Ok(block) => block,
         Err(error) => {
@@ -67,6 +67,22 @@ pub fn new_payload_v3(request: NewPayloadV3Request) -> Result<PayloadStatus, Rpc
             latest_valid_hash: None, 
             validation_error: Some("Invalid block hash".to_string()),
         });
+    }
+    info!("Block hash {} is valid", block_hash);
+    // Concatenate blob versioned hashes lists (tx.blob_versioned_hashes) of each blob transaction included in the payload, respecting the order of inclusion
+    // and check that the resulting array matches expected_blob_versioned_hashes
+    // As we don't currently handle blob txs, we just check that it is empty
+    let blob_versioned_hashes: Vec<H256> = block_body
+        .transactions
+        .iter()
+        .flat_map(|tx| tx.blob_versioned_hashes())
+        .collect()
+    if request.expected_blob_versioned_hashes != blob_versioned_hashes {
+        return Ok(PayloadStatus { 
+            status: PayloadValidationStatus::Invalid, 
+            latest_valid_hash: None, 
+            validation_error: Some("Invalid blob_versioned_hashes".to_string()), 
+        })
     }
 
     Ok(PayloadStatus { 

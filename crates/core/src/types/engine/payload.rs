@@ -5,8 +5,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::rlp::decode::RLPDecode;
 
+use crate::rlp::error::RLPDecodeError;
 use crate::types::{
-    compute_withdrawals_root, BlockBody, BlockHeader, EIP1559Transaction, LegacyTransaction, EIP2930Transaction,Transaction, Withdrawal, DEFAULT_OMMERS_HASH,
+    compute_withdrawals_root, BlockBody, BlockHeader, EIP1559Transaction, LegacyTransaction, EIP2930Transaction, EIP4844Transaction, Transaction, Withdrawal, DEFAULT_OMMERS_HASH,
 };
 
 #[allow(unused)]
@@ -74,13 +75,17 @@ impl EncodedTransaction {
                         LegacyTransaction::decode(tx_bytes).map(Transaction::LegacyTransaction), // TODO: Check if this is a real case scenario
                     // EIP2930
                     0x1 => {
-                        EIP2930Transaction::decode(tx_bytes).map(Transaction::EIP2930Transaction(()))
+                        EIP2930Transaction::decode(tx_bytes).map(Transaction::EIP2930Transaction)
                     }
                     // EIP1559
                     0x2 => {
                         EIP1559Transaction::decode(tx_bytes).map(Transaction::EIP1559Transaction)
                     }
-                    _ => unimplemented!("We don't know this tx type yet"),
+                    // EIP4844
+                    0x3 => {
+                        EIP4844Transaction::decode(tx_bytes).map(Transaction::EIP4844Transaction)
+                    }
+                    ty => Err(RLPDecodeError::Custom(format!("Invalid transaction type: {ty}"))),
                 }
             }
             // LegacyTransaction
@@ -110,7 +115,7 @@ impl ExecutionPayloadV3 {
                 coinbase: self.fee_recipient,
                 state_root: self.state_root,
                 transactions_root: block_body.compute_transations_roots(),
-                receip_root: self.receipts_root,
+                receipt_root: self.receipts_root,
                 logs_bloom: self.logs_bloom.into(),
                 difficulty: 0.into(),
                 number: self.block_number,
