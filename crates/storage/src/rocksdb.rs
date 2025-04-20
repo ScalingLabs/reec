@@ -1,7 +1,7 @@
 use super::{Key, StoreEngine, Value};
 use crate::error::StoreError;
 use crate::rlp::{AccountInfoRLP, AddressRLP};
-use reec_core::types::AccountInfo;
+use reec_core::types::{AccountInfo, BlockBody, BlockHeader, BlockNumber};
 use ethereum_types::Address;
 use libmdbx::orm::{Decodable, Encodable};
 use std::fmt::Debug;
@@ -99,6 +99,33 @@ impl Store {
                  Err(_) => Err(StoreError::DecodeError),
              })
      }
+
+     fn add_block_header(
+        &mut self,
+        _block_number: BlockNumber,
+        _block_header: BlockHeader,
+    ) -> Result<(), StoreError> {
+        todo!()
+    }
+
+    fn get_block_header(
+        &self,
+        _block_number: BlockNumber,
+    ) -> Result<Option<BlockHeader>, StoreError> {
+        todo!()
+    }
+
+    fn add_block_body(
+        &mut self,
+        _block_number: BlockNumber,
+        _block_body: BlockBody,
+    ) -> Result<(), StoreError> {
+        todo!()
+    }
+
+    fn get_block_body(&self, _block_number: BlockNumber) -> Result<Option<BlockBody>, StoreError> {
+        todo!()
+    }
  
      fn set_value(&mut self, key: Key, value: Value) -> Result<(), StoreError> {
          let (reply_sender, reply_receiver) = sync_channel(0);
