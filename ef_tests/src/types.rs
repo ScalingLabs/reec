@@ -1,7 +1,7 @@
 use bytes::Bytes;
 use reec_core::types::{
-    code_hash, Account as ReecAccount, AccountInfo,
-    EIP1559Transaction, LegacyTransaction, Transaction as ReecTransaction,
+    code_hash, Account as reecAccount, AccountInfo,
+    EIP1559Transaction, LegacyTransaction, Transaction as reecTransaction, TxKind
 };
 
 use reec_core::{types::BlockHeader, Address, Bloom, H256, U256, U64};
@@ -27,7 +27,7 @@ pub struct TestUnit {
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
 pub struct Account {
     pub balance: U256,
-    #[serde(deserialize_with = "reec_core::serde_utils::bytes::deser_hex_str")]
+    #[serde(with = "reec_core::serde_utils::bytes")]
     pub code: Bytes,
     pub nonce: U256,
     pub storage: HashMap<U256, U256>,
@@ -101,7 +101,7 @@ pub struct Block {
 pub struct Transaction {
     #[serde(rename = "type")]
     pub transaction_type: Option<U256>,
-    #[serde(deserialize_with = "reec_core::serde_utils::bytes::deser_hex_str")]
+    #[serde(with = "reec_core::serde_utils::bytes")]
     pub data: Bytes,
     pub gas_limit: U256,
     pub gas_price: Option<U256>,
@@ -120,7 +120,7 @@ pub struct Transaction {
     pub to: Address,
 }
 
-// Conversions between EFtests & Reec types
+// Conversions between EFtests & reec types
 
 impl From<Header> for BlockHeader {
     fn from(val: Header) -> Self {
@@ -130,8 +130,8 @@ impl From<Header> for BlockHeader {
             coinbase: val.coinbase, 
             state_root: val.state_root, 
             transactions_root: val.transactions_trie, 
-            receip_root: val.receipt_trie, 
-            logs_bloom: val.bloom.into(), 
+            receipt_root: val.receipt_trie, 
+            logs_bloom: val.bloom, 
             difficulty: val.difficulty, 
             number: val.number.as_u64(), 
             gas_limit: val.gas_limit.as_u64(), 
@@ -149,14 +149,14 @@ impl From<Header> for BlockHeader {
     }
 }
 
-impl From<Transaction> for ReecTransaction {
+impl From<Transaction> for reecTransaction {
     fn from(val: Transaction) -> Self {
         match val.transaction_type {
             Some(tx_type) => match tx_type.as_u64() {
-                2 => ReecTransaction::EIP1559Transaction(val.into()),
+                2 => reecTransaction::EIP1559Transaction(val.into()),
                 _ => unimplemented!(),
             },
-            None => ReecTransaction::LegacyTransaction(val.into())
+            None => reecTransaction::LegacyTransaction(val.into())
         }
     }
 }
@@ -166,13 +166,13 @@ impl From<Transaction> for EIP1559Transaction {
         EIP1559Transaction {
             // Note: gas_price is not used in this conversation as it is not part of EIP1559Transaction, this could be a problem
             chain_id: val.chain_id.map(|id| id.as_u64()).unwrap_or(1), // TODO: Consider converting this into Option
-            signer_nonce: val.nonce.as_u64(),
+            nonce: val.nonce.as_u64(),
             max_priority_fee_per_gas: val.max_priority_fee_per_gas.unwrap_or_default().as_u64(), // TODO: Consider converting this into Option
             max_fee_per_gas: val.max_fee_per_gas.unwrap_or(val.gas_price.unwrap_or_default()).as_u64(), // TODO: Consider converting this into Option
             gas_limit: val.gas_limit.as_u64(),
-            destination: val.to,
-            amount: val.value,
-            payload: val.data,
+            to: TxKind::Call(val.to),
+            value: val.value,
+            data: val.data,
             access_list: val.access_list.unwrap_or_default().into_iter().map(|item|(item.address, item.storage_keys)).collect(),
             signature_y_parity: val.v.as_u64().saturating_sub(27) != 0,
             signature_r: val.r,
@@ -187,7 +187,7 @@ impl From<Transaction> for LegacyTransaction {
             nonce: val.nonce.as_u64(),
             gas_price: val.gas_price.unwrap_or_default().as_u64(), // TODO: Consider converting this into Option
             gas: val.gas_limit.as_u64(),
-            to: reec_core::types::TxKind::Call(val.to),
+            to: TxKind::Call(val.to),
             value: val.value,
             data: val.data,
             v: val.v,
@@ -197,9 +197,9 @@ impl From<Transaction> for LegacyTransaction {
     }
 }
 
-impl From<Account> for ReecAccount {
+impl From<Account> for reecAccount {
     fn from(value: Account) -> Self {
-        ReecAccount  {
+        reecAccount  {
             info: AccountInfo { 
                 code_hash: code_hash(&val.code), 
                 balance: val.balance, 

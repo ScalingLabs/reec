@@ -333,6 +333,12 @@ impl RLPEncode for ethereum_types::Signature {
     }
 }
 
+impl RLPEncode for ethereum_types::Bloom {
+    fn encode(&self, buf: &mut dyn BufMut) {
+        self.0.encode(buf);
+    }
+}
+
 
 #[cfg(test)]
 mod test {

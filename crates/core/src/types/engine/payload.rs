@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use crate::rlp::decode::RLPDecode;
 
 use crate::rlp::error::RLPDecodeError;
+use crate::serde_utils;
 use crate::types::{
     compute_withdrawals_root, BlockBody, BlockHeader, Transaction, Withdrawal, DEFAULT_OMMERS_HASH,
 };
@@ -17,27 +18,27 @@ pub struct ExecutionPayloadV3 {
     parent_hash: H256,
     fee_recipient: Address,
     state_root: H256,
-    receip_root: H256,
+    receipts_root: H256,
     logs_bloom: Bloom,
     prev_randao: H256,
-    #[serde(deserialize_with = "crate::serde_utils::u64::deser_hex_str")]
+    #[serde(with = "crate::serde_utils::u64::hex_str")]
     block_number: u64,
-    #[serde(deserialize_with = "crate::serde_utils::u64::deser_hex_str")]
+    #[serde(with = "crate::serde_utils::u64::hex_str")]
     gas_limit: u64,
-    #[serde(deserialize_with = "crate::serde_utils::u64::deser_hex_str")]
+    #[serde(with = "crate::serde_utils::u64::hex_str")]
     gas_used: u64,
-    #[serde(deserialize_with = "crate::serde_utils::u64::deser_hex_str")]
+    #[serde(with = "crate::serde_utils::u64::hex_str")]
     timestamp: u64,
-    #[serde(deserialize_with = "crate::serde_utils::u64::deser_hex_str")]
+    #[serde(with = "crate::serde_utils::bytes")]
     extra_data: Bytes,
-    #[serde(deserialize_with = "crate::serde_utils::u64::deser_hex_str")]
+    #[serde(with = "crate::serde_utils::u64::hex_str")]
     base_fee_per_gas: u64,
     pub block_hash: H256,
     transactions: Vec<EncodedTransaction>,
     withdrawals: Vec<Withdrawal>,
-    #[serde(deserialize_with = "crate::serde_utils::u64::deser_hex_str")]
+    #[serde(with = "crate::serde_utils::u64::hex_str")]
     blob_gas_used: u64,
-    #[serde(deserialize_with = "crate::serde_utils::u64::deser_hex_str")]
+    #[serde(with = "crate::serde_utils::u64::hex_str")]
     excess_blob_gas: u64,
 }
 
@@ -50,7 +51,7 @@ impl<'de> Deserialize<'de> for EncodedTransaction {
     where
         D: serde::Deserializer<'de>,
     {
-        Ok(EncodedTransaction(serde_utils::bytes::deser_hex_str(
+        Ok(EncodedTransaction(serde_utils::bytes::deserialize(
             deserializer,
         )?))
     }
@@ -71,7 +72,7 @@ impl EncodedTransaction {
 impl ExecutionPayloadV3 {
     /// Converts an `ExecutionPayloadV3` into a block (aka a BlockHeader and BlockBody)
     /// using the parentBeaconBlockRoot recieved along with the payload in the rpc call `engine_newpayloadV3`
-    fn into_block(self, parent_beacon_block_root: H256) -> Result<(BlockHeader, BlockBody), RLPDecodeError> {
+    pub fn into_block(self, parent_beacon_block_root: H256) -> Result<(BlockHeader, BlockBody), RLPDecodeError> {
         let block_body = BlockBody {
             transactions: self
                 .transactions
@@ -89,7 +90,7 @@ impl ExecutionPayloadV3 {
                 state_root: self.state_root,
                 transactions_root: block_body.compute_transations_roots(),
                 receipt_root: self.receipts_root,
-                logs_bloom: self.logs_bloom.into(),
+                logs_bloom: self.logs_bloom,
                 difficulty: 0.into(),
                 number: self.block_number,
                 gas_limit: self.gas_limit,
