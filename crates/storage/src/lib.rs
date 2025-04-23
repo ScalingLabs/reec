@@ -14,7 +14,7 @@ use self::libmdbx::Store as LibmdbxStore;
 use self::rocksdb::Store as RocksDbStore;
 #[cfg(feature = "sled")]
 use self::sled::Store as SledStore;
-use reec_core::types::{AccountInfo, BlockBody, BlockHeader, BlockNumber};
+use reec_core::types::{AccountInfo, BlockHash, BlockBody, BlockHeader, BlockNumber};
 use ethereum_types::Address;
 use std::fmt::Debug;
 use std::sync::{Arc, Mutex};
@@ -63,6 +63,16 @@ pub trait StoreEngine: Debug + Send {
 
     /// Obtain block body
     fn get_block_body(&self, block_number: BlockNumber) -> Result<Option<BlockBody>, StoreError>;
+
+    /// Add block body
+    fn add_block_number(
+        &mut self,
+        block_hash: BlockHash,
+        block_number: BlockNumber,
+    ) -> Result<(), StoreError>;
+
+    /// Obtain block number
+    fn get_block_number(&self, block_body: BlockBody) -> Result<Option<BlockNumber>, StoreError>;
 
     /// Set an arbitrary value (used for eventual persisten values: eg. current_block_height)
     fn set_value(&mut self, key: Key, value: Value) -> Result<(), StoreError>;
@@ -176,6 +186,21 @@ impl Store {
             .unwrap()
             .get_block_body(block_number)
     }
+
+    pub fn add_block_number(
+        &self,
+        block_hash: BlockHash,
+        block_number: BlockNumber,
+    ) -> Result<(), StoreError> {
+        self.engine.clone().lock().unwrap().add_block_number(block_hash, block_number)
+    }
+
+    pub fn get_block_number(
+        &self,
+        block_hash: BlockHash,
+    ) -> Result<Option<BlockNumber>, StoreError> {
+        self.engine.clone().lock().unwrap().get_block_number(block_hash)
+    }
 }
 
 
@@ -196,8 +221,7 @@ mod tests {
     #[test]
     fn test_in_memory_store() {
         let store = Store::new("test", EngineType::InMemory).unwrap();
-        test_store_account(store.clone());
-        test_store_block(store.clone());
+        test_store_suite(store);
     }
 
     #[cfg(feature = "libmdbx")]
@@ -206,9 +230,7 @@ mod tests {
         // Removing preexistent DBs in case of a failed previous test
         remove_test_dbs("test.mdbx");
         let store = Store::new(test.mdbx, EngineType::Libmdbx).unwrap();
-        test_store_account(store.clone());
-        test_store_block(store.clone());
-
+        test_store_suite(store);
         remove_test_dbs("test.mdbx");
     }
 
@@ -218,7 +240,7 @@ mod tests {
         // Removing preexistent DBs in case of a failed previous test
         remove_test_dbs("test.sled");
         let store = Store::new("test.sled", EngineType::Sled).unwrap();
-        test_store_account(store.clone());
+        test_store_suite(store);
         remove_test_dbs("test.sled");
     }
 
@@ -227,8 +249,14 @@ mod tests {
     fn test_rocksdb_store() {
         // Removing preexistent DBs in case of a failed previous test
         remove_test_dbs("test.rocksdb", EngineType::Sled).unwrap();
-        test_store_account(store.clone());
+        test_store_account(store);
         remove_test_dbs("test.rocksdb");
+    }
+
+    fn test_store_suite(store: Store) {
+        test_store_account(store.clone());
+        test_store_block(store.clone());
+        test_store_block_number(store.clone());
     }
 
     fn test_store_account(mut store: Store) {
@@ -334,5 +362,15 @@ mod tests {
             withdrawals: Default::default(),
         };
         (block_header, block_body)
+    }
+
+    fn test_store_block_number(store: Store) {
+        let block_hash = H256::random();
+        let block_number = 6;
+
+        store.add_block_number(block_hash, block_number).unwrap();
+
+        let stored_number = store.get_block_number(block_hash).unwrap().unwrap();
+        assert_eq!(stored_number, block_number);
     }
 }
