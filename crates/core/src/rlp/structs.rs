@@ -1,4 +1,5 @@
 use bytes::BufMut;
+use bytes::Bytes;
 use super::{
     decode::{decode_rlp_item, get_item_with_prefix, RLPDecode}, 
     encode::{encode_length, RLPEncode}, 
@@ -56,6 +57,17 @@ impl<'a> Decoder<'a> {
             }
             Err(_) => (None, self)
         }
+    }
+
+    /// Stores a (key, value) list where the values are already encoded (i.e. value = RLP prefix || payload)
+    /// but the keys are not encoded.
+    pub fn encode_key_value_list<T: RLPEncode>(mut self, list: &Vec<(Bytes, Bytes)>) -> Self {
+        for (key, value) in list {
+            <Bytes>::encode(key, &mut self.temp_buf);
+            // value is already encoded
+            self.temp_buf.put_slice(value)
+        }
+        self
     }
 
     /// Finishes encoding the struct and returns the remaining bytes after the item.
