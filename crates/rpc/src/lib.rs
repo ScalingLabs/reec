@@ -8,7 +8,7 @@ use axum::extract::State;
 use reec_storage::Store;
 use engine::{ExchangeCapabilitiesRequest, NewPayloadV3Request};
 use eth::{
-    block::{self, GetBlockByHashRequest, GetBlockByNumberRequest, GetBlockTransactionCountByNumberRequest}, 
+    block::{self, GetBlockByHashRequest, GetBlockByNumberRequest, GetBlockTransactionCountByNumberRequest, GetTransactionByBlockNumberAndIndexRequest, GetTransactionByBlockHashAndIndexRequest}, 
     client
 };
 use utils::{RpcErr, RpcErrorMetadata, RpcErrorResponse, RpcRequest, RpcSuccessResponse};
@@ -77,6 +77,14 @@ pub fn map_requests(req: &RpcRequest, storage: Store) -> Result<Value, RpcErr> {
         }
         "eth_getBlockTransactionCountByNumber" => {
             let request = GetBlockTransactionCountByNumberRequest::parse(&req.params).ok_or(RpcErr::BadParams)?;
+        }
+        "eth_getTransactionByBlockNumberAndIndex" => {
+            let request = GetTransactionByBlockNumberAndIndexRequest::parse(&req.params).ok_or(RpcErr::BadParams)?;
+            block::get_transaction_by_block_number_and_index(&request, storage)
+        }
+        "eth_getTransactionByBlockHashAndIndex" => {
+            let request = GetTransactionByBlockHashAndIndexRequest::parse(&req.params).ok_or(RpcErr::BadParams)?;
+            block::get_transaction_by_block_hash_and_index(&request, storage)
         }
         "engine_forkchoiceUpdatedV3" => engine::forkchoice_Updated_V3(),
         "engine_newPayloadV3" => {
