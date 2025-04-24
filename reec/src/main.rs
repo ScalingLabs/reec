@@ -1,5 +1,6 @@
 use reec_core::types::Genesis;
 use reec_net::bootnode::BootNode;
+use reec_storage::{EngineType, Store};
 use std::{
     io::{self, BufReader},
     net::{SocketAddr, ToSocketAddrs},
@@ -39,7 +40,8 @@ async fn main() {
 
     let _genesis = read_genesis_file(genesis_file_path);
 
-    let rpc_api = reec_rpc::start_api(http_socket_addr, authrpc_socket_addr);
+    let storage = Store::new("storage.db", EngineType::InMemory).unwrap();
+    let rpc_api = reec_rpc::start_api(http_socket_addr, authrpc_socket_addr, storage);
     let networking = reec_net::start_network(udp_socket_addr, tcp_socket_addr, bootnodes);
     try_join!(tokio::spawn(rpc_api), tokio::spawn(networking)).unwrap();
 }
