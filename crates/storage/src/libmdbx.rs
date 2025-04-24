@@ -2,8 +2,9 @@ use super::{Key, StoreEngine, Value};
 use crate::error::StoreError;
 use crate::rlp::{AccountCodeHashRLP, AccountCodeRLP, AccountInfoRLP, AccountStorageKeyRLP, AccountStorageValueRLP, AddressRLP, BlockBodyRLP, BlockHashRLP, BlockHeaderRLP, ReceiptRLP};
 use anyhow::Result;
+use bytes::Bytes;
 use reec_core::types::{AccountInfo, BlockNumber, Index, BlockBody, BlockHash, BlockHeader};
-use ethereum_types::Address;
+use ethereum_types::{Address, H256};
 use libmdbx::{dupsort, orm::{table, Database}, table_info};
 use std::fmt::{Debug, Formatter};
 use std::path::Path;
@@ -106,6 +107,26 @@ impl StoreEngine for Store {
 
     fn set_value(&mut self, key: Key, value: Value) -> std::result::Result<(), StoreError> {
         todo!()
+    }
+
+    fn get_value(&self, key: Key) -> std::result::Result<Option<Value>, StoreError> {
+        todo!()
+    }
+
+    fn add_account_code(&mut self, code_hash: H256, code: Bytes) -> std::result::Result<(), StoreError> {
+        // Write account code to mdbx
+        let txn = self.db.begin_readwrite().map_err(StoreError::LibmdbxError)?;
+        txn.upsert::<AccountCodes>(code_hash.into(), code.into()).map_err(StoreError::LibmdbxError)
+    }
+
+    fn get_account_code(&self, code_hash: H256) -> std::result::Result<Option<Bytes>, StoreError> {
+        // Read account code from mdbx
+        let txn = self.db.begin_read().map_err(StoreError::LibmdbxError)?;
+        Ok(txn
+            .get::<AccountCodes>(code_hash.into())
+            .map_err(StoreError::LibmdbxError)?
+            .map(|b| b.to())
+        )
     }
 }
 

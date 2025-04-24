@@ -14,8 +14,9 @@ use self::libmdbx::Store as LibmdbxStore;
 use self::rocksdb::Store as RocksDbStore;
 #[cfg(feature = "sled")]
 use self::sled::Store as SledStore;
+use bytes::Bytes;
 use reec_core::types::{AccountInfo, BlockHash, BlockBody, BlockHeader, BlockNumber};
-use ethereum_types::Address;
+use ethereum_types::{Address, H256};
 use std::fmt::Debug;
 use std::sync::{Arc, Mutex};
 
@@ -79,6 +80,22 @@ pub trait StoreEngine: Debug + Send {
 
     /// Retrieve a store value under Key
     fn get_value(&self, key: Key) -> Result<Option<Value>, StoreError>;
+
+    /// Add account code
+    fn add_account_code(&mut self, code_hash: H256, code: Bytes) -> Result<(), StoreError>;
+
+    /// Obtain account code via code hash
+    fn get_account_code(&self, code_hash: H256) -> Result<Option<Bytes>, StoreError>;
+
+    /// Obtain account code via account address
+    fn get_code_by_account_address(&self, address: Address) -> Result<Option<Bytes>, StoreError> {
+        let code_hash = match self.get_account_info(address) {
+            Ok(Some(acc_info)) => acc_info.code_hash,
+            Ok(None) => return Ok(None),
+            Err(err) => return Err(error)
+        };
+        self.get_account_code(code_hash)
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -201,6 +218,33 @@ impl Store {
     ) -> Result<Option<BlockNumber>, StoreError> {
         self.engine.clone().lock().unwrap().get_block_number(block_hash)
     }
+
+    pub fn add_account_code(&self, code_hash: H256, code: Bytes) -> Result<(), StoreError> {
+        self.engine
+            .clone()
+            .lock()
+            .unwrap()
+            .add_account_code(code_hash, code)
+    }
+
+    pub fn get_account_code(&self, code_hash: H256) -> Result<Option<Bytes>, StoreError> {
+        self.engine
+            .clone()
+            .lock()
+            .unwrap()
+            .get_account_code(code_hash)
+    }
+
+    pub fn get_code_by_account_address(
+        &self,
+        address: Address,
+    ) -> Result<Option<Bytes>, StoreError> {
+        self.engine
+            .clone()
+            .lock()
+            .unwrap()
+            .get_code_by_account_address(address)
+    }
 }
 
 
@@ -257,6 +301,7 @@ mod tests {
         test_store_account(store.clone());
         test_store_block(store.clone());
         test_store_block_number(store.clone());
+        test_store_account_code(store.clone());
     }
 
     fn test_store_account(mut store: Store) {
@@ -372,5 +417,15 @@ mod tests {
 
         let stored_number = store.get_block_number(block_hash).unwrap().unwrap();
         assert_eq!(stored_number, block_number);
+    }
+    fn test_store_account_code(store: Store) {
+        let code_hash = H256::random();
+        let code = Bytes::from("kiwi");
+
+        store.add_account_code(code_hash, code.clone()).unwrap();
+
+        let stored_code = store.get_account_code(code_hash).unwrap().unwrap();
+
+        assert_eq!(stored_code, code);
     }
 }

@@ -8,7 +8,7 @@ use axum::extract::State;
 use reec_storage::Store;
 use engine::{ExchangeCapabilitiesRequest, NewPayloadV3Request};
 use eth::{
-    account::{self, GetBalanceReequest, GetBalanceRequest},
+    account::{self, GetBalanceRequest, GetCodeRequest},
     block::{self, GetBlockByHashRequest, GetBlockByNumberRequest, GetBlockTransactionCountByNumberRequest, GetTransactionByBlockHashAndIndexRequest, GetTransactionByBlockNumberAndIndexRequest}, 
     client
 };
@@ -79,6 +79,10 @@ pub fn map_requests(req: &RpcRequest, storage: Store) -> Result<Value, RpcErr> {
         "eth_getBalance" => {
             let request = GetBalanceRequest::parse(&req.params).ok_or(RpcErr::BadParams)?;
             account::get_balance(&request, storage)
+        }
+        "eth_getCode" => {
+            let request = GetCodeRequest::parse(&req.params).ok_or(RpcErr::BadParams)?;
+            account::get_code(&request, storage)
         }
         "eth_getBlockTransactionCountByNumber" => {
             let request = GetBlockTransactionCountByNumberRequest::parse(&req.params).ok_or(RpcErr::BadParams)?;
