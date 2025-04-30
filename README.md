@@ -24,7 +24,7 @@ reec/
 ├── storage/       # Database layer: chain data, state trie, receipts, etc.
 ```
 
-##📍 Roadmap
+## 📍 Roadmap
 
 ### Milestone 1: RPC Node
 Add support to follow a post-Merge localnet as a read-only RPC Node. This first milestone will only support a canonical chain (every incoming block has to be the child of the current head).
