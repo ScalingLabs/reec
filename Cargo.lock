@@ -2027,9 +2027,9 @@ dependencies = [
  "hex-literal",
  "hmac",
  "k256",
- "keccak-hash",
  "rand",
  "reec-core",
+ "sha3",
  "tokio",
  "tracing",
 ]
