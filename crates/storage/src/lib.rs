@@ -15,7 +15,7 @@ use self::rocksdb::Store as RocksDbStore;
 #[cfg(feature = "sled")]
 use self::sled::Store as SledStore;
 use bytes::Bytes;
-use reec_core::types::{AccountInfo, BlockHash, BlockBody, BlockHeader, BlockNumber};
+use reec_core::types::{AccountInfo, BlockHash, BlockBody, BlockHeader, BlockNumber, Index, Receipt};
 use ethereum_types::{Address, H256};
 use std::fmt::Debug;
 use std::sync::{Arc, Mutex};
@@ -74,6 +74,21 @@ pub trait StoreEngine: Debug + Send {
 
     /// Obtain block number
     fn get_block_number(&self, block_body: BlockBody) -> Result<Option<BlockNumber>, StoreError>;
+
+    /// Add receipt
+    fn add_receipt(
+        &mut self,
+        block_number: BlockNumber,
+        index: Index,
+        receipt: Receipt,
+    ) -> Result<(), StoreError>;
+
+    /// Obtain receipt
+    fn get_receipt(
+        &self,
+        block_number: BlockNumber,
+        index: Index,
+    ) -> Result<Option<Receipt>, StoreError>;
 
     /// Set an arbitrary value (used for eventual persisten values: eg. current_block_height)
     fn set_value(&mut self, key: Key, value: Value) -> Result<(), StoreError>;
@@ -245,6 +260,32 @@ impl Store {
             .unwrap()
             .get_code_by_account_address(address)
     }
+
+    pub fn add_receipt(
+        &self,
+        block_number: BlockNumber,
+        index: Index,
+        receipt: Receipt,
+    ) -> Result<(), StoreError> {
+        self.engine
+            .clone()
+            .lock()
+            .unwrap()
+            .add_receipt(block_number, index, receipt)
+    }
+
+    pub fn get_receipt(
+        &self,
+        block_number: BlockNumber,
+        index: Index,
+    ) -> Result<Option<Receipt>, StoreError> {
+        self.engine
+            .clone()
+            .lock()
+            .unwrap()
+            .get_receipt(block_number, index)
+    }
+
 }
 
 
@@ -254,7 +295,7 @@ mod tests {
     use bytes::Bytes;
     use reec_core::{
         rlp::decode::RLPDecode,
-        types::{self, Transaction},
+        types::{self, Transaction, TxType},
         Bloom,
     };
     use ethereum_types::{H256, U256};
@@ -301,6 +342,7 @@ mod tests {
         test_store_account(store.clone());
         test_store_block(store.clone());
         test_store_block_number(store.clone());
+        test_store_block_receipt(store.clone());
         test_store_account_code(store.clone());
     }
 
@@ -418,6 +460,27 @@ mod tests {
         let stored_number = store.get_block_number(block_hash).unwrap().unwrap();
         assert_eq!(stored_number, block_number);
     }
+
+    fn test_store_block_receipt(store: Store) {
+        let receipt = Receipt {
+            tx_type: TxType::EIP2930,
+            succeeded: true,
+            cumulative_gas_used: 1747,
+            bloom: Bloom::random(),
+            logs: vec![],
+        };
+        let block_number = 6;
+        let index = 4;
+
+        store
+            .add_receipt(block_number, index, receipt.clone())
+            .unwrap();
+
+        let stored_receipt = store.get_receipt(block_number, index).unwrap().unwrap();
+
+        assert_eq!(stored_receipt, receipt);
+    }
+
     fn test_store_account_code(store: Store) {
         let code_hash = H256::random();
         let code = Bytes::from("kiwi");

@@ -9,7 +9,7 @@ use reec_storage::Store;
 use engine::{ExchangeCapabilitiesRequest, NewPayloadV3Request};
 use eth::{
     account::{self, GetBalanceRequest, GetCodeRequest},
-    block::{self, GetBlockByHashRequest, GetBlockByNumberRequest, GetBlockTransactionCountByNumberRequest, GetTransactionByBlockHashAndIndexRequest, GetTransactionByBlockNumberAndIndexRequest}, 
+    block::{self, GetBlockByHashRequest, GetBlockByNumberRequest, GetBlockReceiptsRequest, GetBlockTransactionCountByNumberRequest, GetTransactionByBlockHashAndIndexRequest, GetTransactionByBlockNumberAndIndexRequest}, 
     client
 };
 use utils::{RpcErr, RpcErrorMetadata, RpcErrorResponse, RpcRequest, RpcSuccessResponse};
@@ -94,6 +94,10 @@ pub fn map_requests(req: &RpcRequest, storage: Store) -> Result<Value, RpcErr> {
         "eth_getTransactionByBlockHashAndIndex" => {
             let request = GetTransactionByBlockHashAndIndexRequest::parse(&req.params).ok_or(RpcErr::BadParams)?;
             block::get_transaction_by_block_hash_and_index(&request, storage)
+        }
+        "eth_getBlockReceipts" => {
+            let request = GetBlockReceiptsRequest::parse(&req.params).ok_or(RpcErr::BadParams)?;
+            block::get_block_receipts(&request, storage)
         }
         "engine_forkchoiceUpdatedV3" => engine::forkchoice_Updated_V3(),
         "engine_newPayloadV3" => {
