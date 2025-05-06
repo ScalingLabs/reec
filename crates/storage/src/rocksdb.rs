@@ -178,13 +178,29 @@ impl Store {
         todo!()
     }
 
-     fn add_account_code(&mut self, _code_hash: H256, _code: Bytes) -> Result<(), StoreError> {
+    fn add_account_code(&mut self, _code_hash: H256, _code: Bytes) -> Result<(), StoreError> {
         todo!()
-     }
+    }
 
-     fn get_account_code(&self, _code_hash: H256) -> Result<Option<Bytes>, StoreError> {
+    fn get_account_code(&self, _code_hash: H256) -> Result<Option<Bytes>, StoreError> {
         todo!()
-     }
+    }
+
+    fn add_transaction_location(
+        &mut self,
+        _transaction_hash: H256,
+        _block_number: BlockNumber,
+        _index: Index,
+    ) -> Result<(), StoreError> {
+        todo!()
+    }
+
+    fn get_transaction_location(
+        &self,
+        _transaction_hash: H256,
+    ) -> Result<Option<(BlockNumber, Index)>, StoreError> {
+        todo!()
+    }
  }
  
  impl Debug for Store {

@@ -1,6 +1,6 @@
 use super::{Key, StoreEngine, Value};
 use crate::error::StoreError;
-use crate::rlp::{AccountCodeHashRLP, AccountCodeRLP, AccountInfoRLP, AccountStorageKeyRLP, AccountStorageValueRLP, AddressRLP, BlockBodyRLP, BlockHashRLP, BlockHeaderRLP, ReceiptRLP};
+use crate::rlp::{AccountCodeHashRLP, AccountCodeRLP, AccountInfoRLP, AccountStorageKeyRLP, AccountStorageValueRLP, AddressRLP, BlockBodyRLP, BlockHashRLP, BlockHeaderRLP, ReceiptRLP, TransactionHashRLP};
 use anyhow::Result;
 use bytes::Bytes;
 use reec_core::types::{AccountInfo, BlockNumber, Index, BlockBody, BlockHash, BlockHeader, Index, Receipt};
@@ -157,6 +157,27 @@ impl StoreEngine for Store {
             .map_err(StoreError::LibmdbxError)?
             .map(|r| r.to()))
     }
+
+    fn add_transaction_location(
+            &mut self,
+            transaction_hash: H256,
+            block_number: BlockNumber,
+            index: Index,
+        ) -> Result<(), StoreError> {
+        // Write block number to mdbx
+        let txn = self.db.begin_readwrite().map_err(StoreError::LibmdbxError)?;
+        txn.upsert::<TransactionLocations>(transaction_hash.into(), (block_number, index)).map_err(StoreError::LibmdbxError)?;
+        txn.commit().map_err(StoreError::LibmdbxError)
+    }
+
+    fn get_transaction_location(
+            &self,
+            transaction_hash: H256
+        ) -> Result<Option<(BlockNumber, Index)>, StoreError> {
+        // Read tx location from mdbx
+        let txn = self.db.begin_read().map_err(StoreError::LibmdbxError)?;
+        txn.get::<TransactionLocations>(transaction_hash.into()).map_err(StoreError::LibmdbxError)
+    }
 }
 
 impl Debug for Store {
@@ -195,6 +216,10 @@ dupsort!(
     /// Receipts table.
     ( Receipts ) (BlockNumber, Index)[Index] => ReceiptRLP
 );
+table!(
+    /// Transaction locations table.
+    ( TransactionLocations ) TransactionHashRLP => (BlockNumber, Index)
+);
 
 /// Initializes a new database with the provided path. If the path is `None`, the database will be temporary.
 pub fn init_db(path: Option<impl AsRef<Path>>) -> Database {
@@ -206,6 +231,7 @@ pub fn init_db(path: Option<impl AsRef<Path>>) -> Database {
         table_info!(AccountStorages),
         table_info!(AccountCodes),
         table_info!(Receipts),
+        table_info!(TransactionLocations)
     ]
     .into_iter()
     .collect();
