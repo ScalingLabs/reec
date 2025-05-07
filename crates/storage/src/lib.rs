@@ -125,6 +125,21 @@ pub trait StoreEngine: Debug + Send {
         };
         self.get_account_code(code_hash)
     }
+
+    // Add storage value
+    fn add_storage_at(
+        &mut self,
+        address: Address,
+        storage_key: H256,
+        storage_value: H256,
+    ) -> Result<(), StoreError>;
+
+    // Obtain storage value
+    fn get_storage_at(
+        &self,
+        address: Address,
+        storage_key: H256,
+    ) -> Result<Option<H256>, StoreError>;
 }
 
 #[derive(Debug, Clone)]
@@ -316,6 +331,29 @@ impl Store {
             .get_receipt(block_number, index)
     }
 
+    pub fn add_storage_at(
+        &self,
+        address: Address,
+        storage_key: H256,
+        storage_value: H256,
+    ) -> Result<(), StoreError> {
+        self.engine
+            .lock()
+            .unwrap()
+            .add_storage_at(address, storage_key, storage_value)
+    }
+
+    pub fn get_storage_at(
+        &self,
+        address: Address,
+        storage_key: H256,
+    ) -> Result<Option<H256>, StoreError> {
+        self.engine
+            .lock()
+            .unwrap()
+            .get_storage_at(address, storage_key)
+    }
+
 }
 
 
@@ -375,6 +413,7 @@ mod tests {
         test_store_transaction_location(store.clone());
         test_store_block_receipt(store.clone());
         test_store_account_code(store.clone());
+        test_store_accout_storage(store.clone());
     }
 
     fn test_store_account(mut store: Store) {
@@ -530,5 +569,22 @@ mod tests {
         let stored_code = store.get_account_code(code_hash).unwrap().unwrap();
 
         assert_eq!(stored_code, code);
+    }
+
+    fn test_store_accout_storage(store: Store) {
+        let address = Address::random();
+        let storage_key_a = H256::random();
+        let storage_key_b = H256::random();
+        let storage_value_a = H256::random();
+        let storage_value_b = H256::random();
+
+        store.add_storage_at(address, storage_key_a, storage_value_a).unwrap();
+        store.add_storage_at(address, storage_key_b, storage_value_b).unwrap();
+
+        let stored_value_a = store.get_storage_at(address, storage_key_a).unwrap().unwrap();
+        let stored_value_b = store.get_storage_at(address, storage_key_b).unwrap().unwrap();
+
+        assert_eq!(stored_value_a, storage_value_a);
+        assert_eq!(stored_value_b, storage_value_b)
     }
 }

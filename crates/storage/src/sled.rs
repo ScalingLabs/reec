@@ -121,6 +121,22 @@ impl StoreEngine for Store {
         todo!()
     }
 
+    fn add_storage_at(
+        &mut self,
+        _address: Address,
+        _storage_key: H256,
+        _storage_value: H256,
+    ) -> Result<(), StoreError> {
+        todo!()
+    }
+
+    fn get_storage_at(
+        &_address: Address,
+        _storage_key: H256,
+    ) -> Result<Option<H256>, StoreError> {
+        todo!()
+    }
+
     fn add_transaction_location(
         &mut self,
         _transaction_hash: H256,

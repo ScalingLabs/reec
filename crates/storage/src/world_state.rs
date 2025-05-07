@@ -75,7 +75,7 @@ mod tests {
     use std::str::FromStr;
 
     use crate::{
-        account::{AccountInfoRLP, AccountStorageKeyRLP, AccountStorageValueRLP, AddressRLP},
+        account::{AccountInfoRLP, AccountStorageKeyBytes, AccountStorageValueBytes, AddressRLP},
         init_db,
     };
 
@@ -111,8 +111,17 @@ mod tests {
             .upsert::<AccountStorages>(
                 AddressRLP(address.encode_to_vec()),
                 (
-                    AccountStorageKeyRLP(storage[0].0 .0),
-                    AccountStorageValueRLP(storage[0].1 .0),
+                    AccountStorageKeyBytes(storage[0].0 .0),
+                    AccountStorageValueBytes(storage[0].1 .0),
+                ),
+            )
+            .unwrap();
+        write
+            .upsert::<AccountStorages>(
+                AddressRLP(address.encode_to_vec()),
+                (
+                    AccountStorageKeyBytes(storage[1].0 .0),
+                    AccountStorageValueBytes(storage[1].1 .0),
                 ),
             )
             .unwrap();
