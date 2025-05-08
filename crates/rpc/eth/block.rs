@@ -6,8 +6,11 @@ use tracing::info;
 use serde_json::Value;
 
 use crate::utils::RpcErr;
-use reec_core::types::{BlockHash, BlockNumber, BlockSerializeable, ReceiptWithTxAndBlockInfo};
-
+use reec_core::{
+    types::{
+    BlockHash, BlockNumber, BlockSerializeable, ReceiptWithTxAndBlockInfo},
+    H256,
+}
 pub struct GetBlockByNumberRequest {
     pub block: BlockIdentifier,
     pub hydrated: bool,
@@ -34,6 +37,10 @@ pub struct GetTransactionByBlockHashAndIndexRequest {
 
 pub struct GetBlockReceiptsRequest {
     pub block: BlockIdentifier
+}
+
+pub struct GetTransactionByHashRequest {
+    pub transaction_hash: H256,
 }
 
 #[derive(Deserialize)]
@@ -125,6 +132,18 @@ impl GetBlockReceiptsRequest {
         };
         Some(GetBlockReceiptsRequest { 
             block: serde_json::from_value(params[0].clone()).ok()?,
+        })
+    }
+}
+
+impl GetTransactionByHashRequest {
+    pub fn parse(params: &Option<Vec<Value>>) -> Option<GetBlockByHashRequest> {
+        let params = params.as_ref()?;
+        if params.len() != 1 {
+            return None;
+        };
+        Some(GetTransactionByHashRequest {
+            transaction_hash: serde_json::from_value(params[0].clone()).ok()?,
         })
     }
 }
@@ -275,6 +294,22 @@ pub fn get_block_receipts(
     }
 
     serde_json::to_value(&receipts).map_err(|_| RpcErr::Internal)
+}
+
+pub fn get_transaction_by_hash(
+    request: &GetTransactionByHashRequest,
+    storage: Store,
+) -> Result<Value, RpcErr> {
+    info!("Requested transaction with hash: {}",
+    request.transaction_hash
+    );
+    let transaction: reec_core::types::Transaction = 
+    match storage.get_transaction_by_hash(request) {
+        Ok(Some(transaction)) => transaction,
+        Ok(_) => return Ok(Value::Null),
+        _ => return Err(RpcErr::Internal)
+    };
+    serde_json::to_value(transaction).map_err(|_| RpcErr::Internal)
 }
 
 impl Display for BlockIdentifier {
