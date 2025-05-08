@@ -1,5 +1,5 @@
 use std::collections::{HashMap, path::Path};
-use ::ef_tests::types::TestUnit;
+use crate::types::TestUnit;
 use reec_core::evm::{execute_tx, SpecId};
 
 fn execute_test(test: &TestUnit) {

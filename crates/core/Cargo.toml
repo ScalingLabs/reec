@@ -23,3 +23,6 @@ revm = { version = "10.0.0", features = ["serde", "std", "serde-json"] }
 [dev-dependencies]
 hex-literal = "0.4.1"
 
+[lib]
+path = "./core.rs"
+

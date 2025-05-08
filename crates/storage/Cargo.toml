@@ -25,3 +25,6 @@ rocksdb = ["dep:rocksdb"]
 
 [dev-dependencies]
 hex.workspace = true
+
+[lib]
+path = "./storage.rs"
