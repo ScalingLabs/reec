@@ -5,8 +5,8 @@ members = [
     "crates/rpc",
     "crates/consensus",
     "crates/net", 
-    "reec", 
-    "ef_tests",
+    "cmd/reec", 
+    "cmd/ef_tests",
 ]
 resolver = "2"
 
