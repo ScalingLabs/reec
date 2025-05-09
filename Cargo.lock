@@ -853,6 +853,8 @@ dependencies = [
  "datatest-stable",
  "hex",
  "reec-core",
+ "reec-evm",
+ "reec-storage",
  "serde",
  "serde_json",
 ]
@@ -2007,13 +2009,23 @@ dependencies = [
  "hex-literal",
  "keccak-hash",
  "lazy_static",
- "revm",
  "secp256k1",
  "serde",
  "serde_json",
  "sha3",
  "thiserror 1.0.69",
  "tinyvec",
+]
+
+[[package]]
+name = "reec-evm"
+version = "0.1.0"
+dependencies = [
+ "bytes",
+ "reec-core",
+ "reec-storage",
+ "revm",
+ "thiserror 1.0.69",
 ]
 
 [[package]]

@@ -1,0 +1,14 @@
+[package]
+name = "reec-evm"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+reec-core.workspace = true
+reec-storage.workspace = true
+revm = { version = "10.0.0", features = ["serde", "std", "serde-json"] }
+bytes.workspace = true
+thiserror.workspace = true
+
+[lib]
+path = "./evm.rs"

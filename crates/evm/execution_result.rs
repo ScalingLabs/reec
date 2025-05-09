@@ -1,5 +1,5 @@
 use bytes::Bytes;
-use ethereum_types::Address;
+use reec_core::Address;
 use revm::primitives::result::Output as RevmOutput;
 use revm::primitives::result::SuccessReason as RevmSuccessReason;
 use revm::primitives::ExecutionResult as RevmExecutionResult;

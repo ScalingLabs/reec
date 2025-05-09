@@ -5,6 +5,7 @@ members = [
     "crates/rpc",
     "crates/consensus",
     "crates/net", 
+    "crates/evm",
     "cmd/reec", 
     "cmd/ef_tests",
 ]
@@ -21,6 +22,7 @@ reec-core = { path = "./crates/core" }
 reec-net = { path = "./crates/net" }
 reec-rpc = { path = "./crates/rpc" }
 reec-storage = { path = "./crates/storage" }
+reec-evm = { path = "./crates/evm" }
 
 ethereum-types = "0.14.1"
 tracing = { version = "0.1", features = ["log"] }
@@ -28,7 +30,7 @@ tracing-subscriber = "0.3.0"
 serde = {version = "1.0.203", features = ["derive"]}
 serde_json = "1.0.117"
 libmdbx = { version = "0.4.0", features = ["orm"] }
-bytes = "1.6.0"
+bytes = { version = "1.6.0", features = ["serde"] }
 tokio = { version = "1.38.0", features = ["full"] }
 thiserror = "1.0.61"
 hex = "0.4.3"
