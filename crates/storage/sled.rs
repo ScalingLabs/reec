@@ -2,7 +2,7 @@ use super::{Key, StoreEngine, Value};
 use crate::error::StoreError;
 use crate::rlp::{AccountInfoRLP, AddressRLP};
 use bytes::Bytes;
-use ethereum_rust_core::types::{AccountInfo, BlockBody, BlockHash, BlockHeader, BlockNumber, Index, Receipt};
+use reec_core::types::{AccountInfo, BlockBody, BlockHash, BlockHeader, BlockNumber, Index, Receipt};
 use ethereum_types::{Address, H256};
 use libmdbx::orm::{Decodable, Encodable};
 use sled::Db;

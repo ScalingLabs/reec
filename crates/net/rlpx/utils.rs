@@ -1,4 +1,4 @@
-use ethereum_rust_core::H512;
+use reec_core::H512;
 use k256::{
     elliptic_curve::sec1::{FromEncodedPoint, ToEncodedPoint},
     EncodedPoint, PublicKey, SecretKey,
