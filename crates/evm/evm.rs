@@ -1,18 +1,11 @@
 mod db;
 mod errors;
 mod execution_result;
-// use crate::types::TxKind;
-
-// use super::{
-//     types::{Account, BlockHeader, Transaction},
-//     Address,
-// };
 use db::StoreWrapper;
 use reec_core::types::{BlockHeader, Transaction, TxKind};
 use reec_storage::Store;
 use revm::{
     db::states::bundle_state::BundleRetention,
-    inspector_handle_register,
     inspectors::TracerEip3155,
     primitives::{BlockEnv, TxEnv, U256, B256},
     Evm,
@@ -58,7 +51,7 @@ fn run_evm(
             .with_spec_id(spec_id)
             .reset_handler()
             .with_external_context(TracerEip3155::new(Box::new(std::io::stderr())).without_summary(),)
-            .append_handler_register(inspector_handle_register).build();
+            .build();
         evm.transact_commit().map_err(EvmError::from)?
     };
     Ok(tx_result.into())
