@@ -3,39 +3,39 @@ use crate::types::{Account, TestUnit};
 use reec_core::{
     rlp::decode::RLPDecode,
     rlp::encode::RLPEncode,
-    types::{Account as CoreAccount, Block as CoreBlock},
+    types::{Account as CoreAccount, Block as CoreBlock, Transaction as CoreTransaction},
     Address
 };
 use reec_evm::{evm_state, execute_tx, EvmState, SpecId};
 use reec_storage::{EngineType, Store};
 
 #[allow(unused)]
-pub fn execute_test(test: &TestUnit) {
-    // TODO: Add support for multiple blocks and multiple transactions per block
-    let transaction = test
-        .blocks
-        .first()
-        .unwrap()
-        .transactions
-        .as_ref()
-        .unwrap()
-        .first()
-        .unwrap();
-    assert!(execute_tx(
-        &transaction.clone().into(), 
-        &test
-            .blocks
-            .first()
-            .as_ref()
-            .unwrap()
-            .block_header
-            .clone()
-            .unwrap()
-            .into(), 
-        &mut build_evm_state_from_prestate(&test.pre), 
-        SpecId::CANCUN,
-    ).unwrap()
-    .is_success());
+pub fn execute_test(test_key: &str, test: &TestUnit) {
+   let mut evm_state = build_evm_state_from_prestate(&test.pre);
+   let blocks = test.blocks.clone();
+    for block in blocks.iter() {
+        let block_header = block.block_header.clone().unwrap();
+        let transactions = block.transactions.as_ref().unwrap();
+        for transaction in transactions.iter() {
+            assert_eq!(
+                transaction.clone().sender,
+                CoreTransaction::from(transaction.clone()).sender(),
+                "Expected sender address differs from derived sender address on test: {}",
+                test_key
+            );
+            assert!(
+                execute_tx(
+                    &transaction.clone().into(), 
+                    &block_header.clone().into(), 
+                    &mut evm_state, 
+                    SpecId::CANCUN
+                )
+                .is_ok(),
+                "Transaction execution failed on test: {}",
+                test_key
+            )
+        }
+   }
 }
 
 pub fn parse_test_file(path: &Path) -> HashMap<String, TestUnit> {
