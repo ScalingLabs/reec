@@ -38,10 +38,14 @@ async fn main() {
     let udp_socket_addr = parse_socket_addr(udp_addr, udp_port).expect("Failed to parse discovery address and port");
     let tcp_socket_addr = parse_socket_addr(tcp_addr, tcp_port).expect("Failed to parse addr and port");
 
-    let _genesis = read_genesis_file(genesis_file_path);
+    // let _genesis = read_genesis_file(genesis_file_path);
+    let mut store = Store::new("storage.db", EngineType::InMemory).expect("Failed to create Store");
+    let genesis = read_genesis_file(genesis_file_path);
+    store.add_initial_state(genesis).expect("Failed to create genesis block");
 
-    let storage = Store::new("storage.db", EngineType::InMemory).unwrap();
-    let rpc_api = reec_rpc::start_api(http_socket_addr, authrpc_socket_addr, storage);
+    // let storage = Store::new("storage.db", EngineType::InMemory).unwrap();
+    // let rpc_api = reec_rpc::start_api(http_socket_addr, authrpc_socket_addr, storage);
+    let rpc_api = reec_rpc::start_api(http_socket_addr, authrpc_socket_addr, bootnodes);
     let networking = reec_net::start_network(udp_socket_addr, tcp_socket_addr, bootnodes);
     try_join!(tokio::spawn(rpc_api), tokio::spawn(networking)).unwrap();
 }
