@@ -47,6 +47,10 @@ impl StoreEngine for Store {
             })
     }
 
+    fn remove_account_info(&mut self, _address: Address) -> Result<(), StoreError> {
+        todo!()
+    }
+
     fn add_block_header(
         &mut self,
         _block_number: BlockNumber,
@@ -150,6 +154,10 @@ impl StoreEngine for Store {
         &self,
         _transaction_hash: H256,
     ) -> Result<Option<(BlockNumber, Index)>, StoreError> {
+        todo!()
+    }
+
+    fn remove_account_info(&mut self, _address: Address) -> Result<(), StoreError> {
         todo!()
     }
 }

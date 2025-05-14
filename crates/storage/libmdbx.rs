@@ -43,6 +43,12 @@ impl StoreEngine for Store {
         Ok(txn.get::<AccountInfos>(address.into()).map_err(StoreError::LibmdbxError)?.map(|a| a.to()))
     }
 
+    fn remove_account_info(&mut self, address: Address) -> Result<(), StoreError> {
+        let txn = self.db.begin_readwrite().map_err(StoreError::LibmdbxError)?;
+        txn.delete::<AccountInfos>(address.into(), None).map_err(StoreError::LibmdbxError)?;
+        txn.commit().map_err(StoreError::LibmdbxError)
+    }
+
     fn add_block_header(
         &mut self,
         block_number: BlockNumber,
@@ -203,6 +209,16 @@ impl StoreEngine for Store {
         Ok(cursor
             .seek_value(address.into(), storage_key.into())
             .map_err(StoreError::LibmdbxError)?.map(|s| s.1.into()))
+    }
+
+    fn remove_account_storage(&mut self, address: Address) -> Result<(), StoreError> {
+        let txn = self
+            .db
+            .begin_readwrite()
+            .map_err(StoreError::LibmdbxError)?;
+        txn.delete::<AccountStorages>(address.into(), None)
+            .map_err(StoreError::LibmdbxError)?;
+        txn.commit().map_err(StoreError::LibmdbxError)
     }
 }
 

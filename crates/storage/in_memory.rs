@@ -42,6 +42,11 @@ impl StoreEngine for Store {
         Ok(self.account_infos.get(&address).cloned())
     }
 
+    fn remove_account_info(&mut self, address: Address) -> Result<(), StoreError> {
+        self.account_infos.remove(&address);
+        Ok(())
+    }
+
     fn set_value(&mut self, key: Key, value: Value) -> Result<(), StoreError> {
         let _ = self.values.insert(key, value);
         Ok(())
@@ -152,6 +157,11 @@ impl StoreEngine for Store {
         storage_key: H256,
     ) -> Result<Option<H256>, StoreError> {
         Ok(self.account_storages.get(&address).and_then(|entry| entry.get(&storage_key).cloned()))
+    }
+
+    fn remove_account_storage(&mut self, address: Address) -> Result<(), StoreError> {
+        self.account_storages.remove(&address);
+        Ok(())
     }
 }
 
