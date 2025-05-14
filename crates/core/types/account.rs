@@ -2,11 +2,15 @@ use std::collections::BTreeMap;
 
 use bytes::Bytes;
 use ethereum_types::{H256, U256};
+use lazy_static::lazy_static;
 use patricia_merkle_tree::PatriciaMerkleTree;
 use sha3::{Digest as _,Keccak256};
 use crate::rlp::{encode::RLPEncode, decode::RLPDecode, structs::{Encoder, Decoder}, error::RLPDecodeError};
 use super::GenesisAccount;
 
+lazy_static! {
+    pub static ref EMPTY_KECCACK_HASH: H256 = H256::from_slice(&hex::decode("c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470").unwrap())
+}
 
 #[allow(unused)]
 #[derive(Clone, Debug, PartialEq)]
@@ -28,6 +32,16 @@ pub struct AccountState {
     pub balance: U256,
     pub storage_root: H256,
     pub code_hash: H256,
+}
+
+impl Default for AccountInfo {
+    fn default() -> Self {
+        Self { 
+            code_hash: *EMPTY_KECCACK_HASH, 
+            balance: Default::default(), 
+            nonce: Default::default() 
+        }
+    }
 }
 
 impl From<GenesisAccount> for Account {

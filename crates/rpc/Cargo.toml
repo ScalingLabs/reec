@@ -12,6 +12,8 @@ tracing.workspace = true
 tracing-subscriber.workspace = true
 reec-core.workspace = true
 reec-storage.workspace = true
+reec-evm.workspace = true
+hex.workspace = true
 
 [lib]
 path = "./rpc.rs"
