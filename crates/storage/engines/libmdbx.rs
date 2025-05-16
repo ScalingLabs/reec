@@ -1,4 +1,6 @@
-use super::{Key, StoreEngine, Value};
+// use super::{Key, StoreEngine, Value};
+
+use super::api::StoreEngine;
 use crate::error::StoreError;
 use crate::rlp::{AccountCodeHashRLP, AccountCodeRLP, AccountInfoRLP, AddressRLP, BlockBodyRLP, BlockHashRLP, BlockHeaderRLP, ReceiptRLP, TransactionHashRLP};
 use anyhow::Result;
@@ -112,13 +114,13 @@ impl StoreEngine for Store {
         txn.get::<BlockNumbers>(block_hash.into()).map_err(StoreError::LibmdbxError)
     }
 
-    fn set_value(&mut self, key: Key, value: Value) -> std::result::Result<(), StoreError> {
-        todo!()
-    }
+    // fn set_value(&mut self, key: Key, value: Value) -> std::result::Result<(), StoreError> {
+    //     todo!()
+    // }
 
-    fn get_value(&self, key: Key) -> std::result::Result<Option<Value>, StoreError> {
-        todo!()
-    }
+    // fn get_value(&self, key: Key) -> std::result::Result<Option<Value>, StoreError> {
+    //     todo!()
+    // }
 
     fn add_account_code(&mut self, code_hash: H256, code: Bytes) -> std::result::Result<(), StoreError> {
         // Write account code to mdbx
