@@ -3,7 +3,7 @@ mod errors;
 mod execution_result;
 use db::StoreWrapper;
 use reec_core::{
-    types::{AccountInfo, BlockHeader, GenericTransaction, Transaction, TxKind},
+    types::{AccountInfo, BlockHeader, GenericTransaction, Transaction, TxKind, Withdrawal, GWEI_TO_WEI},
     Address, BigEndianHash, H256, U256
 };
 use reec_storage::{error::StoreError, Store};
@@ -213,6 +213,16 @@ pub fn apply_state_transitions(state: &mut EvmState) -> Result<(), StoreError> {
                     )),
                 )?;
             }
+        }
+    }
+    Ok(())
+}
+
+/// Processes a block's withdrawals, updating the account balances in the state
+pub fn process_withdrawals(state: &Store, withdrawals: &[Withdrawal]) -> Result<(), StoreError> {
+    for withdrawal in withdrawals {
+        if !withdrawal.amount.is_zero() {
+            state.increment_balance(withdrawal.address, withdrawal.amount * GWEI_TO_WEI)?
         }
     }
     Ok(())

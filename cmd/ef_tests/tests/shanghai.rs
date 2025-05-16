@@ -19,4 +19,7 @@ datatest_stable::harness!(
     parse_and_execute,
     "vectors/shanghai/eip3651_warm_coinbase/",
     r"^.*/*",
+    parse_and_execute,
+    "vectors/shanghai/eip4895_withdrawals/",
+    r"^.*/*",
 );

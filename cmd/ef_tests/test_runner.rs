@@ -6,7 +6,7 @@ use reec_core::{
     types::{Account as CoreAccount, Block as CoreBlock, Transaction as CoreTransaction},
     Address
 };
-use reec_evm::{apply_state_transitions, evm_state, execute_tx, EvmState, SpecId};
+use reec_evm::{apply_state_transitions, evm_state, execute_tx, process_withdrawals, EvmState, SpecId};
 use reec_storage::{EngineType, Store};
 
 #[allow(unused)]
@@ -16,31 +16,48 @@ pub fn execute_test(test_key: &str, test: &TestUnit, check_post_state: bool) {
    let blocks = test.blocks.clone();
    // Execute all txs in the test unit
     for block in blocks.iter() {
-        let block_header = block.block_header.clone().unwrap();
-        let transactions = block.transactions.as_ref().unwrap();
-        for transaction in transactions.iter() {
+        let block_header = block.header().clone();
+
+        for (tx_index, transaction) in block.transactions().iter().enumerate() {
             assert_eq!(
                 transaction.clone().sender,
                 CoreTransaction::from(transaction.clone()).sender(),
                 "Expected sender address differs from derived sender address on test: {}",
                 test_key
             );
-            assert!(
-                execute_tx(
-                    &transaction.clone().into(), 
-                    &block_header.clone().into(), 
-                    &mut evm_state, 
-                    SpecId::CANCUN
+            let execution_result = execute_tx(
+                &transaction.clone().into(), 
+                &block_header.clone().into(), 
+                &mut evm_state, 
+                SpecId::CANCUN,
+            );
+            // If this is the last tx in a block that is expection an exception then we must make sure it fails
+            // TODO: Check that the exception is the one in the test unit
+            let is_last_tx = block.transactions().len() == tx_index + 1;
+
+            if block.expect_exception.is_some() && is_last_tx {
+                assert!(
+                    execution_result.is_err(),
+                    "Expected transaction execution to fail on test: {}",
+                    test_key
                 )
-                .is_ok(),
-                "Transaction execution failed on test: {}",
-                test_key
-            )
+            } else {
+                assert!(
+                    execution_result.is_ok(),
+                    "Transaction execution failed on test: {} with error: {}",
+                    test_key,
+                    execution_result.unwrap_err()
+                )
+            }
+        }
+        // Apply state transitions
+        apply_state_transitions(&mut evm_state).expect("Failed to update DB state");
+        // Process withdrawals (if present)
+        if let Some(withdrawals) = block.withdrawals() {
+            process_withdrawals(evm_state.database(), withdrawals).expect("DB error when processing withdrawals")
         }
    }
-   // Apply state transitions
-   apply_state_transitions(&mut evm_states).expect("Failed to update DB state");
-   // Check post state
+
     if check_post_state {
         check_poststate_against_db(&test.post_state, evm_state.database())
     }
@@ -60,15 +77,10 @@ pub fn validate_test(test: &TestUnit) {
 
     // Checks that blocks can be decoded
     for block in &test.blocks {
-        // skip the blocks with exceptions expected
-        if block.expect_exception.is_some() {
-            continue;
-        }
-
         match CoreBlock::decode(block.rlp.as_ref()) {
             Ok(decoded_block) => {
                 // check that the decoded block matches the desrialized one
-                assert_eq!(decoded_block, (block.clone()).into());
+                assert_eq!(decoded_block, (block.block().clone()).into());
                 let mut rlp_block = Vec::new();
                 // check that encoding the decoded block matches the rlp field
                 decoded_block.encode(&mut rlp_block);
