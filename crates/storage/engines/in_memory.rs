@@ -1,27 +1,29 @@
-// use super::{Key, StoreEngine, Value};
 use crate::error::StoreError;
 use bytes::Bytes;
 use reec_core::types::{AccountInfo, BlockBody, BlockHash, BlockHeader, BlockNumber, Index, Receipt};
-use ethereum_types::{Address, H256};
+use ethereum_types::{Address, H256, U256};
 use std::{collections::HashMap, fmt::Debug};
 
 use super::api::StoreEngine;
 
 #[derive(Debug)]
 pub struct Store {
+    chain_data: ChainData,
     account_infos: HashMap<Address, AccountInfo>,
     block_numbers: HashMap<BlockHash, BlockNumber>,
     bodies: HashMap<BlockNumber, BlockBody>,
     headers: HashMap<BlockNumber, BlockHeader>,
-    // values: HashMap<Key, Value>,
     // Maps code hashes to code
     account_codes: HashMap<H256, Bytes>,
     account_storages: HashMap<Address, HashMap<H256, H256>>,
     // Maps transaction hashes to their block number and index within the block
     transaction_locations: HashMap<H256, (BlockNumber, Index)>,
     receipts: HashMap<BlockNumber, HashMap<Index, Receipt>>,
-    // Maps code hashes to code
-    account_codes: HashMap<H256, Bytes>,
+}
+
+#[derive(Default)]
+struct ChainData {
+    chain_id: Option<U256>
 }
 
 impl Store {
@@ -48,15 +50,6 @@ impl StoreEngine for Store {
         self.account_infos.remove(&address);
         Ok(())
     }
-
-    // fn set_value(&mut self, key: Key, value: Value) -> Result<(), StoreError> {
-    //     let _ = self.values.insert(key, value);
-    //     Ok(())
-    // }
-
-    // fn get_value(&self, key: Key) -> Result<Option<Vec<u8>>, StoreError> {
-    //     Ok(self.values.get(&key).cloned())
-    // }
 
     fn get_block_header(&self, block_number: u64) -> Result<Option<BlockHeader>, StoreError> {
         Ok(self.headers.get(&block_number).cloned())
@@ -164,6 +157,15 @@ impl StoreEngine for Store {
     fn remove_account_storage(&mut self, address: Address) -> Result<(), StoreError> {
         self.account_storages.remove(&address);
         Ok(())
+    }
+
+    fn update_chain_id(&mut self, chain_id: U256) -> Result<(), StoreError> {
+        self.chain_data.chain_id.replace(chain_id);
+        Ok(())
+    }
+
+    fn get_chain_id(&self) -> Result<Option<U256>, StoreError> {
+        Ok(self.chain_data.chain_id)
     }
 }
 

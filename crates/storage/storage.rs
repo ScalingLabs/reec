@@ -234,6 +234,9 @@ impl Store {
             self.add_account(address, account.into())?;
         }
         Ok(())
+
+        // Store chain info
+        self.update_chain_id(genesis.config.chain_id)
     }
 
     pub fn get_transaction_by_hash(
@@ -283,6 +286,14 @@ impl Store {
             .unwrap()
             .increment_balance(address, amount)
     }
+
+    pub fn update_chain_id(&self, chain_id: U256) -> Result<(), StoreError> {
+        self.engine.lock().unwrap().update_chain_id(chain_id)
+    }
+
+    pub fn get_chain_id(&self) -> Result<Option<U256>, StoreError> {
+        self.engine.lock().unwrap().get_chain_id()
+    }
 }
 
 
@@ -326,6 +337,7 @@ mod tests {
         test_store_accout_storage(store.clone());
         test_remove_account_storage(store.clone());
         test_increment_balance(store.clone());
+        test_store_chain_data(store.clone());
     }
 
     fn test_store_account(store: Store) {
@@ -552,5 +564,12 @@ mod tests {
         let stored_account_info = store.get_account_info(address).unwrap().unwrap();
 
         assert_eq!(stored_account_info.balance, 75.into());
+    }
+
+    fn test_store_chain_data(store: Store) {
+        let chain_id = U256::from_dec_str("46").unwrap();
+        store.update_chain_id(chain_id).unwrap();
+        let stored_chain_id = store.get_chain_id().unwrap().unwrap();
+        assert_eq!(chain_id, stored_chain_id);
     }
 }

@@ -1,12 +1,12 @@
-// use super::{Key, StoreEngine, Value};
-
 use super::api::StoreEngine;
 use crate::error::StoreError;
 use crate::rlp::{AccountCodeHashRLP, AccountCodeRLP, AccountInfoRLP, AddressRLP, BlockBodyRLP, BlockHashRLP, BlockHeaderRLP, ReceiptRLP, TransactionHashRLP};
 use anyhow::Result;
 use bytes::Bytes;
+use reec_core::rlp::decode::RLPDecode;
+use reec_core::rlp::encode::RLPEncode;
 use reec_core::types::{AccountInfo, BlockNumber, Index, BlockBody, BlockHash, BlockHeader, Index, Receipt};
-use ethereum_types::{Address, H256};
+use ethereum_types::{Address, H256, U256};
 use libmdbx::orm::{Decodable, Encodable};
 use libmdbx::{dupsort, orm::{table, Database}, table_info};
 use std::fmt::{Debug, Formatter};
@@ -114,14 +114,6 @@ impl StoreEngine for Store {
         txn.get::<BlockNumbers>(block_hash.into()).map_err(StoreError::LibmdbxError)
     }
 
-    // fn set_value(&mut self, key: Key, value: Value) -> std::result::Result<(), StoreError> {
-    //     todo!()
-    // }
-
-    // fn get_value(&self, key: Key) -> std::result::Result<Option<Value>, StoreError> {
-    //     todo!()
-    // }
-
     fn add_account_code(&mut self, code_hash: H256, code: Bytes) -> std::result::Result<(), StoreError> {
         // Write account code to mdbx
         let txn = self.db.begin_readwrite().map_err(StoreError::LibmdbxError)?;
@@ -222,6 +214,30 @@ impl StoreEngine for Store {
             .map_err(StoreError::LibmdbxError)?;
         txn.commit().map_err(StoreError::LibmdbxError)
     }
+
+    fn update_chain_id(&mut self, chain_id: U256) -> Result<(), StoreError> {
+        // Overwrites previous value if present
+        let txn = self
+            .db
+            .begin_readwrite()
+            .map_err(StoreError::LibmdbxError)?;
+        txn.upsert::<ChainData>(ChainDataIndex::ChainId, chain_id.encode_to_vec())
+            .map_err(StoreError::LibmdbxError)?;
+        txn.commit().map_err(StoreError::LibmdbxError)
+    }
+
+    fn get_chain_id(&self) -> Result<Option<U256>, StoreError> {
+        let txn = self.db.begin_read().map_err(StoreError::LibmdbxError)?;
+        match txn
+            .get::<ChainData>(ChainDataIndex::ChainId)
+            .map_err(StoreError::LibmdbxError)?
+        {
+            None => Ok(None),
+            Some(ref rlp) => U256::decode(rlp)
+                .map(Some)
+                .map_err(|_| StoreError::DecodeError),
+        }
+    }
 }
 
 impl Debug for Store {
@@ -263,6 +279,12 @@ dupsort!(
 table!(
     /// Transaction locations table.
     ( TransactionLocations ) TransactionHashRLP => (BlockNumber, Index)
+);
+
+table!(
+    /// Stores chain data, each value is unique and stored as its rlp encoding
+    /// See [ChainDataIndex] for available chain values
+    ( ChainData ) ChainDataIndex => Vec<u8>
 );
 
 // Storage values are stored as bytes instead of using their rlp encoding
@@ -315,6 +337,19 @@ impl From<AccountStorageValueBytes> for H256 {
         H256(value.0)
     }
 }
+
+/// Represents the key for each unique value of the chain data stored in the db
+pub enum ChainDataIndex {
+    ChainId = 0
+}
+
+impl Encodable for ChainDataIndex {
+    type Encoded = [u8; 4];
+
+    fn encode(self) -> Self::Encoded {
+        (self as u32).encode()
+    }
+}
  
 
 /// Initializes a new database with the provided path. If the path is `None`, the database will be temporary.
@@ -327,7 +362,8 @@ pub fn init_db(path: Option<impl AsRef<Path>>) -> Database {
         table_info!(AccountStorages),
         table_info!(AccountCodes),
         table_info!(Receipts),
-        table_info!(TransactionLocations)
+        table_info!(TransactionLocations),
+        table_info!(ChainData)
     ]
     .into_iter()
     .collect();
