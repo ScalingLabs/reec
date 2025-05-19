@@ -2026,6 +2026,8 @@ name = "reec-evm"
 version = "0.1.0"
 dependencies = [
  "bytes",
+ "hex",
+ "lazy_static",
  "reec-core",
  "reec-storage",
  "revm",

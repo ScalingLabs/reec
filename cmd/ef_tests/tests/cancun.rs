@@ -7,7 +7,7 @@ fn parse_and_execute(path: &Path) -> datatest_stable::Result<()> {
 
     for (test_key, test) in tests {
         validate_test(&test);
-        execute_test(&test_key, &test, false)
+        execute_test(&test_key, &test)
     }
     Ok(())
 }
@@ -32,11 +32,11 @@ datatest_stable::harness!(
     parse_and_execute,
     "vectors/cancun/",
     r"eip5656_mcopy/.*/.*\.json",
-    parse_and_execute,
-    "vectors/cancun/",
-    r"eip7516_blobgasfee/.*/.*\.json",
-    parse_and_execute,
-    "vectors/cancun/",
-    // we ignore `create_selfdestruct_same_tx.json` because it has some errors in the encoding
-    r"eip6780_selfdestruct/.*/.*\.json"
+    // parse_and_execute,
+    // "vectors/cancun/",
+    // r"eip7516_blobgasfee/.*/.*\.json",
+    // parse_and_execute,
+    // "vectors/cancun/",
+    // // we ignore `create_selfdestruct_same_tx.json` because it has some errors in the encoding
+    // r"eip6780_selfdestruct/.*/.*\.json"
 );

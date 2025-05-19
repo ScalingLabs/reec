@@ -156,6 +156,14 @@ pub trait StoreEngine: Debug + Send {
         if let Some(mut account_info) = self.get_account_info(address)? {
             account_info.balance = account_info.balance.saturating_add(amount);
             self.add_account_info(address, account_info)?;
+        } else {
+            self.add_account_info(
+                address,
+                AccountInfo {
+                    balance: amount,
+                    ..Default::default()
+                },
+            )?;
         }
         Ok(())
     }
