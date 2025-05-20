@@ -115,6 +115,7 @@ pub fn map_requests(req: &RpcRequest, storage: Store) -> Result<Value, RpcErr> {
             let request = CreateAccessListRequest::parse(&req.params).ok_or(RpcErr::BadParams)?;
             block::create_access_list(&request, storage)
         }
+        "eth_blockNumber" => block::block_number(storage),
         "engine_forkchoiceUpdatedV3" => engine::forkchoice_Updated_V3(),
         "engine_newPayloadV3" => {
             let request = parse_new_payload_v3_request(req.params.as_ref().ok_or(RpcErr::BadParams)?)?;
