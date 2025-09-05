@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::HashMap;
 
 use bytes::Bytes;
 use ethereum_types::{H256, U256};
@@ -9,7 +9,7 @@ use crate::rlp::{encode::RLPEncode, decode::RLPDecode, structs::{Encoder, Decode
 use super::GenesisAccount;
 
 lazy_static! {
-    pub static ref EMPTY_KECCACK_HASH: H256 = H256::from_slice(&hex::decode("c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470").unwrap())
+    pub static ref EMPTY_KECCACK_HASH: H256 = H256::from_slice(&hex::decode("c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470").unwrap());
 }
 
 #[allow(unused)]
@@ -17,7 +17,7 @@ lazy_static! {
 pub struct Account {
     pub info: AccountInfo,
     pub code: Bytes,
-    pub storage: BTreeMap<H256, H256>,
+    pub storage: HashMap<H256, U256>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -116,7 +116,7 @@ impl RLPDecode for AccountState {
     }
 }
 
-pub fn compute_storage_root(storage: &BTreeMap<H256, H256>) -> H256 {
+pub fn compute_storage_root(storage: &HashMap<H256, U256>) -> H256 {
     let mut storage_trie = PatriciaMerkleTree::<Vec<u8>, Vec<u8>, Keccak256>::new();
 
     for (k, v) in storage.iter() {
@@ -134,7 +134,7 @@ pub fn compute_storage_root(storage: &BTreeMap<H256, H256>) -> H256 {
 impl AccountState {
     pub fn from_info_and_storage(
         info: &AccountInfo,
-        storage: &BTreeMap<H256, H256>,
+        storage: &HashMap<H256, H256>,
     ) -> AccountState {
         AccountState { 
             nonce: info.nonce,

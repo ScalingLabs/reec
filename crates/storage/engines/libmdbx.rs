@@ -68,15 +68,23 @@ impl StoreEngine for Store {
         self.remove::<AccountInfos>(address.into())
     }
 
-    // fn get_account_info(&self, address: Address) -> Result<Option<AccountInfo>, StoreError> {
-    //    Ok(self.read::<AccountInfos>(address.into())?.map(|a| a.to()))
-    // }
+    fn get_account_info(&self, address: Address) -> Result<Option<AccountInfo>, StoreError> {
+       Ok(self.read::<AccountInfos>(address.into())?.map(|a| a.to()))
+    }
 
-    // fn remove_account_info(&mut self, address: Address) -> Result<(), StoreError> {
-    //     let txn = self.db.begin_readwrite().map_err(StoreError::LibmdbxError)?;
-    //     txn.delete::<AccountInfos>(address.into(), None).map_err(StoreError::LibmdbxError)?;
-    //     txn.commit().map_err(StoreError::LibmdbxError)
-    // }
+    fn account_infos_iter(&self) -> std::result::Result<Box<dyn Iterator<Item = (Address, AccountInfo)>>, StoreError> {
+        let txn = self.db.begin_read().map_err(StoreError::LibmdbxError)?;
+
+    }
+
+    fn account_storage_iter(&mut self, address: Address) -> std::result::Result<Box<dyn Iterator<Item = (H256, U256)>>, StoreError> {
+        let txn = self.db.begin_read().map_err(StoreError::LibmdbxError)?;
+        let cursor = txn.cursor::<AccountInfos>().map_err(StoreError::LibmdbxError)?;
+        Ok(Box::new(cursor.walk(None).map(|elem| {
+            let (a, b) = elem.unwrap();
+            (a.to(), b.to())
+        })))
+    }
 
     fn add_block_header(
         &mut self,
@@ -165,7 +173,7 @@ impl StoreEngine for Store {
             &mut self,
             address: Address,
             storage_key: H256,
-            storage_value: H256,
+            storage_value: U256,
         ) -> Result<(), StoreError> {
             self.write::<AccountStorages>(address.into(), (storage_key.into(), storage_value.into()))
     }
@@ -174,7 +182,7 @@ impl StoreEngine for Store {
             &self,
             address: Address,
             storage_key: H256,
-        ) -> std::result::Result<Option<H256>, StoreError> {
+        ) -> std::result::Result<Option<U256>, StoreError> {
         // Read storage from mdbx
         let txn = self.db.begin_read().map_err(StoreError::LibmdbxError)?;
         let mut cursor = txn.cursor::<AccountStorages>().map_err(StoreError::LibmdbxError)?;
@@ -206,6 +214,20 @@ impl StoreEngine for Store {
                 .map(Some)
                 .map_err(|_| StoreError::DecodeError),  
         }
+    }
+
+    fn account_storage_iter(
+        &mut self,
+        address: Address
+    ) -> Result<Box<dyn Iterator<Item = (H256, U256)>>, StoreError> {
+        let txn = self.db.begin_read().map_err(StoreError::LibmdbxError)?;
+        let cursor = txn.cursor::<AccountStorages>().map_err(StoreError::LibmdbxError)?;
+        Ok(Box::new(cursor.walk_key(address.into(), None).map(
+            |elem| {
+                let (a, b) = elem.unwrap();
+                (a.into(), b.into())
+            },
+        )))
     }
 
     fn get_cancun_time(&self) -> std::result::Result<Option<u64>, StoreError> {
@@ -394,13 +416,21 @@ impl From<H256> for AccountStorageKeyBytes {
  
 impl From<H256> for AccountStorageValueBytes {
     fn from(value: H256) -> Self {
-        AccountStorageValueBytes(value.0)
+        let mut value_bytes = [0; 32];
+        value.to_big_endian(&mut value_bytes);
+        AccountStorageValueBytes(value_bytes)
     }
 }
  
-impl From<AccountStorageValueBytes> for H256 {
-    fn from(value: AccountStorageValueBytes) -> Self {
+impl From<AccountStorageKeyBytes> for H256 {
+    fn from(value: AccountStorageKeyBytes) -> Self {
         H256(value.0)
+    }
+}
+
+impl From<AccountStorageValueBytes> for U256 {
+    fn from(value: AccountStorageValueBytes) -> Self {
+        U256::from_big_endian(&value.0)
     }
 }
 
