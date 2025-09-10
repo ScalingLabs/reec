@@ -22,4 +22,7 @@ datatest_stable::harness!(
     // parse_and_execute,
     // "vectors/shanghai/eip4895_withdrawals/",
     // r"^.*/*",
+    parse_and_execute,
+    "vectors/shanghai/eip4895_withdrawals/",
+    r"^(?!.*withdrawals/self_destructing_account\.json$).*"
 );
