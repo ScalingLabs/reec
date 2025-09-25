@@ -9,7 +9,7 @@ use reec_evm::{evm_state, execute_block, EvmState, SpecId};
 use reec_storage::{EngineType, Store};
 
 /// Tests the execute_block function
-pub fn execute_test(test_key: &str, test: &TestUnit) {
+pub fn execute_test(test_key: &str, test: &TestUnit, spec_id: SpecId) {
     // Build pre state
    let mut evm_state = build_evm_state_for_test(test);
    let blocks = test.blocks.clone();
@@ -22,7 +22,7 @@ pub fn execute_test(test_key: &str, test: &TestUnit) {
         let execution_result = execute_block(
             &block.block().clone().into(), 
             &mut evm_state, 
-            spec_id::CANCUN
+            spec_id,
         );
         if block.expect_exception.is_some() {
             assert!(

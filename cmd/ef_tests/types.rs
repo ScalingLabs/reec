@@ -18,7 +18,7 @@ pub struct TestUnit {
     pub genesis_block_header: Header,
     #[serde(rename = "genesisRLP", with = "reec_core::serde_utils::bytes")]
     pub genesis_rlp: Bytes,
-    pub lastblockhash: serde_json::Value,
+    pub lastblockhash: String,
     pub network: serde_json::Value,
     pub post_state: HashMap<Address, Account>,
     pub pre: HashMap<Address, Account>,
