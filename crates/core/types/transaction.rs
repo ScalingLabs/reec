@@ -314,7 +314,6 @@ impl RLPDecode for Transaction {
             LegacyTransaction::decode_unfinished(rlp).map(|(tx, rem)| (Transaction::LegacyTransaction(tx), rem))
         }
     }
-    }
 }
 
 /// The transaction's kind: call or create.
@@ -871,13 +870,12 @@ mod serde_impl {
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
     use serde_impl::{AccessListEntry, GenericTransaction};
     use hex_literal::hex;
     use super::*;
 
     // use super::LegacyTransaction;
-    use crate::types::{compute_receipts_root, BlockBody, Receipt};
+    use crate::types::{compute_receipts_root, compute_transactions_root, BlockBody, Receipt};
 
     #[test]
     fn test_compute_transactions_root() {
@@ -899,7 +897,7 @@ mod tests {
         };
         body.transactions.push(Transaction::LegacyTransaction(tx));
         let expected_root = hex!("8151d548273f6683169524b66ca9fe338b9ce42bc3540046c828fd939ae23bcb");
-        let result = body.compute_transations_roots();
+        let result = compute_transactions_root(&body.transactions);
         assert_eq!(result, expected_root.into());
     }
 

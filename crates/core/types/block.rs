@@ -205,9 +205,9 @@ impl BlockBody {
         }
     }
 
-    pub fn compute_transations_roots(&self) -> H256 {
+    pub fn compute_transactions_root(transactions: & [Transaction]) -> H256 {
         let mut trie = PatriciaMerkleTree::<Vec<u8>, Vec<u8>, Keccak256>::new();
-        for (idx, tx) in self.transactions.iter().enumerate() {
+        for (idx, tx) in transactions.iter().enumerate() {
             trie.insert(idx.encode_to_vec(), tx.encode_to_vec());
         }
         let &root = trie.compute_hash();
@@ -422,7 +422,7 @@ mod serializable {
                 BlockBodyWrapper::OnlyHashes(OnlyHashesBlockBody { 
                     transactions: body.transactions.iter().map(|t| t.compute_hash()).collect(), 
                     uncles: body.ommers, 
-                    withdrawals: body.withdrawals.unwrap(), 
+                    withdrawals: body.withdrawals.unwrap_or_default(), 
                 })
             };
             let hash = header.compute_block_hash();
