@@ -152,3 +152,21 @@ fn check_poststate_against_db(test_key: &str, test: &TestUnits, db: &Store) {
             );
         }
     }
+
+    // Check world state
+    // get last valid block
+    let last_block = match test.genesis_block_header.hash == test.lastblockhash {
+        // lastblockhash matches genesis block
+        true => &test.genesis_block_header,
+        // last blockhash matches a block in blocks list
+        false => test
+            .blocks
+            .iter()
+            .map(|b| b.header())
+            .find(|h| h.hash == test.lastblockhash)
+            .unwrap(),
+    };
+    let test_state_root = last_block.state_root;
+
+    assert_eq!(test_state_root, db.clone().world_state_root(), "Mistmatched state root for world state trie, test {test_key}");
+}

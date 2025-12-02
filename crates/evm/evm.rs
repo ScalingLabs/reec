@@ -45,7 +45,7 @@ pub fn execute_block(block: &Block, state: &mut EvmState, spec_id: SpecId) -> Re
     let block_header = &block.header;
     // eip 4788: execute beacon_root_contract_call before block transactions
     if block_header.parent_beacon_block_root.is_some() && spec_id == SpecId::CANCUN {
-        beacon_root_contract_call(state, block_header, spec_id)?:
+        beacon_root_contract_call(state, block_header, spec_id)?;
     }
     for transaction in block.body.transactions.iter() {
         execute_tx(transaction, block_header, state, spec_id)?;
@@ -205,6 +205,14 @@ pub fn apply_state_transitions(state: &mut EvmState) -> Result<(), StoreError> {
         if account.status.was_destroyed() {
             state.database().remove_account(address)?;
         }
+
+        // If account is empty, do not add to the database
+        if account
+            .account_info()
+            .is_some_and(|acc_info| acc_info.is_empty()) {
+                continue;
+            }
+
         // Apply account changes to DB
         // If the account was changed then both original and current info will be present in the bundle account
         if account.is_info_changed() {
@@ -315,12 +323,12 @@ pub fn beacon_root_contract_call(
         .build();
 
     let transaction_result = evm.transact()?;
-    let mut state = transaction_result.state;
-
+    // let mut state = transaction_result.state;
+    let mut result_state = transaction_result.state;
     state.remove(&*SYSTEM_ADDRESS);
     state.remove(&evm.block().coinbase);
 
-    evm.context.evm.db.commit(state);
+    evm.context.evm.db.commit(result_state);
 
     Ok(transaction_result.result.into())
 }
