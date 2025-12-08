@@ -1,8 +1,7 @@
 use std::{collections::HashMap, path::Path};
 use crate::types::TestUnit;
 use reec_core::{
-    rlp::decode::RLPDecode,
-    rlp::encode::RLPEncode,
+    rlp::{decode::RLPDecode, encode::RLPEncode},
     types::{Account as CoreAccount, Block as CoreBlock},
 };
 use reec_evm::{evm_state, execute_block, EvmState, SpecId};
@@ -84,10 +83,13 @@ pub fn validate_test(test: &TestUnit) {
 /// Creates an in-memory DB for evm execution and loads the prestate accounts
 pub fn build_evm_state_for_test(test: &TestUnit) -> EvmState {
     let mut store = Store::new("store.db", EngineType::InMemory).expect("Failed to build DB for testing");
+    let block_number = test.genesis_block_header.number.as_u64();
     store.add_block_header(
-        test.genesis_block_header.number.low_u64(), 
+        block_number,
         test.genesis_block_header.clone().into(),
     ).unwrap();
+    store.add_block_number(test.genesis_block_header.hash, block_number).unwrap();
+    let _ = store.update_latest_block_number(block_number);
     for (address, account) in &test.pre {
         let account: CoreAccount = account.clone().into();
         store.add_account(*address, account).expect("Failed to write to test DB")
@@ -153,20 +155,15 @@ fn check_poststate_against_db(test_key: &str, test: &TestUnits, db: &Store) {
         }
     }
 
-    // Check world state
-    // get last valid block
-    let last_block = match test.genesis_block_header.hash == test.lastblockhash {
-        // lastblockhash matches genesis block
-        true => &test.genesis_block_header,
-        // last blockhash matches a block in blocks list
-        false => test
-            .blocks
-            .iter()
-            .map(|b| b.header())
-            .find(|h| h.hash == test.lastblockhash)
-            .unwrap(),
-    };
-    let test_state_root = last_block.state_root;
+    // Check lastblocklash is in store
+    let last_block_number = db.get_latest_block_number().unwrap().unwrap();
+    let last_block_hash = db.get_block_header(last_block_number).unwrap().unwrap().compute_block_hash();
+    assert_eq!(test.lastblockhash, last_block_hash, "Last block number does not match");
 
-    assert_eq!(test_state_root, db.clone().world_state_root(), "Mistmatched state root for world state trie, test {test_key}");
-}
+    // Check world state
+    let last_block = db.get_block_header(last_block_number).unwrap();
+    assert!(last_block.is_some(), "Block has is not stored in db");
+
+    // Check world state
+    let db_state_root = last_block.unwrap().state_root;
+    assert_eq!(db_state_root, db.clone().world_state_root(), "Mistmatched state root for world state trie, test {test_key}");
