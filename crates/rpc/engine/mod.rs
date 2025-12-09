@@ -101,8 +101,6 @@ pub fn new_payload_v3(request: NewPayloadV3Request, storage: Store) -> Result<Pa
     info!("Executing payload with block hash: {block_hash}");
     execute_block(&block, &mut evm_state(storage.clone()), SpecId::CANCUN).map_err(|_| RpcErr::Vm)?;
     info!("Block with hash {block_hash} executed successfullly");
-    storage.add_block(block).map_err(|_| RpcErr::Internal)?;
     info!("Block with hash {block_hash} added to storage");
-
     Ok(PayloadStatus::valid_with_hash(block_hash))
 }
