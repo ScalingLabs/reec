@@ -200,6 +200,10 @@ impl StoreEngine for Store {
         if let Some(cancun_time) = chain_config.cancun_time {
             self.write::<ChainData>(ChainDataIndex::CancunTime, cancun_time.encode_to_vec())?;
         };
+        // Store shanghai timestamp
+        if let Some(shanghai_time) = chain_config.shanghai_time {
+            self.write::<ChainData>(ChainDataIndex::ShanghaiTime, shanghai_time.encode_to_vec())?;
+        }
         // Store chain id
         self.write::<ChainData>(
             ChainDataIndex::ChainId, 
@@ -239,7 +243,12 @@ impl StoreEngine for Store {
         }
     }
 
-
+    fn get_shanghai_time(&self) -> Result<Option<u64>, StoreError> {
+        match self.read::<ChainData>(ChainDataIndex::ShanghaiTime)? {
+            None => Ok(None),
+            Some(ref rlp) => RLPDecode::decode(rlp).map(Some).map_err(|_| StoreError::DecodeError)
+        }
+    }
 
     fn update_earliest_block_number(
         &mut self,
@@ -443,6 +452,7 @@ pub enum ChainDataIndex {
     LatestBlockNumber = 4,
     PendingBlockNumber = 5,
     CancunTime = 6,
+    ShanghaiTime = 7,
 }
 
 impl Encodable for ChainDataIndex {

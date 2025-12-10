@@ -9,6 +9,8 @@ use reec_core::{types::BlockHeader, Address, Bloom, H160, H256, U256, U64};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+use crate::network::Network;
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct TestUnit {
@@ -19,7 +21,7 @@ pub struct TestUnit {
     #[serde(rename = "genesisRLP", with = "reec_core::serde_utils::bytes")]
     pub genesis_rlp: Bytes,
     pub lastblockhash: H256,
-    pub network: serde_json::Value,
+    pub network: Network,
     pub post_state: HashMap<Address, Account>,
     pub pre: HashMap<Address, Account>,
     pub seal_engine: serde_json::Value,

@@ -2,7 +2,7 @@ use reec_core::{
     types::{validate_block_header, ExecutionPayloadV3, PayloadStatus},
     H256,
 };
-use reec_evm::{evm_state, execute_block, SpecId};
+use reec_evm::{evm_state, execute_block};
 use reec_storage::Store;
 use serde_json::{json, Value};
 use tracing::info;
@@ -99,7 +99,7 @@ pub fn new_payload_v3(request: NewPayloadV3Request, storage: Store) -> Result<Pa
 
     // Execute and store the block
     info!("Executing payload with block hash: {block_hash}");
-    execute_block(&block, &mut evm_state(storage.clone()), SpecId::CANCUN).map_err(|_| RpcErr::Vm)?;
+    execute_block(&block, &mut evm_state(storage.clone())).map_err(|_| RpcErr::Vm)?;
     info!("Block with hash {block_hash} executed successfullly");
     info!("Block with hash {block_hash} added to storage");
     Ok(PayloadStatus::valid_with_hash(block_hash))

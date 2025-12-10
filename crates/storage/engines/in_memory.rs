@@ -29,7 +29,8 @@ struct ChainData {
     safe_block_number: Option<BlockNumber>,
     latest_block_number: Option<BlockNumber>,
     pending_block_number: Option<BlockNumber>,
-    cancun_time: Option<u64>
+    cancun_time: Option<u64>, 
+    shanghai_time: Option<u64>,
 }
 
 impl Store {
@@ -178,6 +179,8 @@ impl StoreEngine for Store {
     fn set_chain_config(&mut self, chain_config: &ChainConfig) -> Result<(), StoreError> {
         // Store cancun timestamp
         self.chain_data.cancun_time = chain_config.cancun_time;
+        // Store shanghai timestamp
+        self.chain_data.shanghai_time = chain_config.shanghai_time;
         // Store chain id
         self.chain_data.chain_id.replace(chain_config.chain_id);
         Ok(())
@@ -189,6 +192,10 @@ impl StoreEngine for Store {
 
     fn get_cancun_time(&self) -> Result<Option<u64>, StoreError> {
         Ok(self.chain_data.cancun_time)
+    }
+
+    fn get_shanghai_time(&self) -> Result<Option<u64>, StoreError> {
+        Ok(self.chain_data.shanghai_time)
     }
 
     fn update_earliest_block_number(

@@ -932,6 +932,7 @@ dependencies = [
  "bytes",
  "datatest-stable",
  "hex",
+ "lazy_static",
  "reec-core",
  "reec-evm",
  "reec-storage",

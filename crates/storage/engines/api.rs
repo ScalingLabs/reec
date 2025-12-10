@@ -185,6 +185,9 @@ pub trait StoreEngine: Debug + Send {
     /// Obtain the current chain id
     fn get_chain_id(&self) -> Result<Option<U256>, StoreError>;
 
+    /// Obtain the timestamp at which the shanghai fork was activated
+    fn get_shanghai_time(&self) -> Result<Option<u64>, StoreError>;
+
     /// Update earliest block number
     fn update_earliest_block_number(&mut self, block_number: BlockNumber)
         -> Result<(), StoreError>;
