@@ -80,10 +80,9 @@ impl StoreEngine for Store {
     fn account_storage_iter(&mut self, address: Address) -> std::result::Result<Box<dyn Iterator<Item = (H256, U256)>>, StoreError> {
         let txn = self.db.begin_read().map_err(StoreError::LibmdbxError)?;
         let cursor = txn.cursor::<AccountInfos>().map_err(StoreError::LibmdbxError)?;
-        Ok(Box::new(cursor.walk(None).map(|elem| {
-            let (a, b) = elem.unwrap();
-            (a.to(), b.to())
-        })))
+        let iter = cursor.walk(None).map_while(|res| res.ok().map(|(addr, info)|(addr.to(), info.to())));
+        // We need to collect here so the resulting iterator doesn't read from the cursor itself
+        Ok(Box::new(iter.collect::<Vec<_>>().into_iter()))
     }
 
     fn add_block_header(
@@ -226,12 +225,9 @@ impl StoreEngine for Store {
     ) -> Result<Box<dyn Iterator<Item = (H256, U256)>>, StoreError> {
         let txn = self.db.begin_read().map_err(StoreError::LibmdbxError)?;
         let cursor = txn.cursor::<AccountStorages>().map_err(StoreError::LibmdbxError)?;
-        Ok(Box::new(cursor.walk_key(address.into(), None).map(
-            |elem| {
-                let (a, b) = elem.unwrap();
-                (a.into(), b.into())
-            },
-        )))
+        let iter = cursor.walk_key(address.into(), None).map_while(|res| res.ok().map(|(key, value)|(key.into(), value.into())));
+        // We need to collect here so the resulting iterator doesn't read from the cursor itself
+        Ok(Box::new(iter.collect::<Vec<_>>().into_iter()))
     }
 
     fn get_cancun_time(&self) -> std::result::Result<Option<u64>, StoreError> {
