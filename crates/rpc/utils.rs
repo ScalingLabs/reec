@@ -1,3 +1,5 @@
+use reec_evm::EvmError;
+use reec_storage::error::StoreError;
 use serde::{Serialize, Deserialize};
 use serde_json::Value;
 
@@ -62,4 +64,17 @@ pub struct RpcErrorResponse {
     pub id: i32,
     pub jsonrpc: String,
     pub error: RpcErrorMetadata,
+}
+
+/// Failure to read from DB will always constitute an internal error
+impl From<StoreError> for RpcErr {
+    fn from(_value: StoreError) -> Self {
+        RpcErr::Internal
+    }
+}
+
+impl From<EvmError> for RpcErr {
+    fn from(value: EvmError) -> Self {
+        RpcErr::Vm
+    }
 }

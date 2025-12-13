@@ -67,12 +67,10 @@ impl GetStorageAtRequest {
 
 pub fn get_balance(request: &GetBalanceRequest, storage: Store) -> Result<Value, RpcErr> {
     info!("Requested balance of account {} at block {}", request.address, request.block);
-    let account = match storage.get_account_info(request.address) {
-        Ok(Some(account)) => account,
+    let account = match storage.get_account_info(request.address)? {
+        Some(account) => account,
         // Account not found
-        Ok(_) => return  Ok(Value::Null),
-        // DB error
-        _ => return Err(RpcErr::Internal)
+        _ => return Ok(Value::Null),
     };
 
     serde_json::to_value(format!("{:#x", account.balance)).map_err(|_| RpcErr::Internal)
@@ -80,12 +78,10 @@ pub fn get_balance(request: &GetBalanceRequest, storage: Store) -> Result<Value,
 
 pub fn get_code(request: &GetCodeRequest, storage: Store) -> Result<Value, RpcErr> {
     info!("Requested code of account {} at block {}", request.address, request.block);
-    let code = match storage.get_code_by_account_address(request.address) {
-        Ok(Some(code)) => code,
+    let code = match storage.get_code_by_account_address(request.address)? {
+        Some(code) => code,
         // Account not found
-        Ok(_) => return Ok(Value::Null),
-        // DB error
-        _ => return Err(RpcErr::Internal)
+        _ => return Ok(Value::Null),
     };
 
     serde_json::to_value(format!("Ox{:x}", code)).map_err(|_| RpcErr::Internal)
@@ -93,12 +89,10 @@ pub fn get_code(request: &GetCodeRequest, storage: Store) -> Result<Value, RpcEr
 
 pub fn get_storage_at(request: &GetStorageAtRequest, storage: Store) -> Result<Value, RpcErr> {
     info!("Requested storage slot {} of account {} at block {}", request.storage_slot, request.address, request.block);
-    let storage_value = match storage.get_storage_at(request.address, request.storage_slot) {
-        Ok(Some(storage_value)) => storage_value,
+    let storage_value = match storage.get_storage_at(request.address, request.storage_slot)? {
+        Some(storage_value) => storage_value,
         // Account not found
-        Ok(_) => return Ok(Value::Null),
-        // DB error
-        _ => return Err(RpcErr::Internal),
+        _ => return Ok(Value::Null),
     };
     serde_json::to_value(format!("{:#x}", storage_value)).map_err(|_| RpcErr::Internal)
 }
