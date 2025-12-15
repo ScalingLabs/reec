@@ -3,23 +3,17 @@ mod errors;
 mod execution_result;
 use db::StoreWrapper;
 use reec_core::{
-    types::{AccountInfo, Block, BlockHeader, GenericTransaction, Transaction, TxKind, Withdrawal, GWEI_TO_WEI},
-    Address, BigEndianHash, H256, U256
+    Address, BigEndianHash, H256, U256, types::{AccountInfo, Block, BlockHeader, EIP4844Transaction, GWEI_TO_WEI, GenericTransaction, Transaction, TxKind, Withdrawal, validate_block_header, validate_cancun_header_fields}, validate_block_header, validate_cancun_header_fields, validate_no_cancun_header_fields
 };
 use reec_storage::{error::StoreError, Store};
 use lazy_static::lazy_static;
 use revm::{
-    db::states::bundle_state::BundleRetention,
-    inspector_handle_register,
-    inspectors::TracerEip3155,
-    precompile::{PrecompileSpecId, Precompiles},
-    primitives::{BlockEnv, TxEnv, B256, U256 as RevmU256},
-    Database, DatabaseCommit, Evm,
+    Database, DatabaseCommit, Evm, db::states::bundle_state::BundleRetention, inspector_handle_register, inspectors::TracerEip3155, precompile::{PrecompileSpecId, Precompiles}, primitives::{B256, BlobExcessGasAndPrice, BlockEnv, MAX_BLOB_GAS_PER_BLOCK, MAX_BLOB_NUMBER_PER_BLOCK, TxEnv, U256 as RevmU256}
 };
 use revm_inspectors::access_list::AccessListInspector;
 
 // Rename imported types for clarity
-use revm::primitives::{Address as RevmAddress, TxKind as RevmTxKind};
+use revm::primitives::{Address as RevmAddress, TxKind as RevmTxKind, GAS_PER_BLOB};
 use revm_primitives::{AccessList as RevmAccessList, AccessListItem as RevmAccessListItem};
 
 // Export needed types
@@ -38,6 +32,46 @@ impl EvmState {
     pub fn database(&self) -> &Store {
         &self.0.database.0
     }
+}
+
+pub fn validate_block(block: &Block, parent_header: &BlockHeader, state: &EvmState) -> bool {
+    let spec = spec_id(state.database(), block.header.timestamp).unwrap();
+    // Verify initial header validity against parent
+    let mut valid_header = validate_block_header(&block.header, parent_header);
+    valid_header = match spec {
+        SpecId::CANCUN => {
+            valid_header && validate_cancun_header_fields(&block.header, parent_header)
+        }
+        _ => valid_header && validate_no_cancun_header_fields(&block.header),
+    };
+    if !valid_header {
+        return false;
+    }
+
+    // Verify blob gas usage
+    let mut blob_gas_used = 0_u64;
+    let mut blobs_in_block = 0_u64;
+    for transaction in block.body.transactions.iter() {
+        if let Transaction::EIP4844Transaction(tx) = transaction {
+            blob_gas_used += get_total_blob_gas(tx);
+            blobs_in_block += tx.blob_versioned_hashes.len() as u64;
+        }
+    }
+    if spec == SpecId::CANCUN && blob_gas_used > MAX_BLOB_GAS_PER_BLOCK {
+        return false;
+    }
+    if spec == SpecId::CANCUN && blobs_in_block > MAX_BLOB_NUMBER_PER_BLOCK {
+        return false;
+    }
+    if spec == SpecId::CANCUN && blob_gas_used != block.header.blob_gas_used.unwrap() {
+        return false;
+    }
+    true
+}
+
+/// Calculates the blob gas required by a transaction
+pub fn get_total_blob_gas(tx: &EIP4844Transaction) -> u64 {
+    GAS_PER_BLOB * tx.blob_versioned_hashes.len() as u64
 }
 
 /// Executes all transactions in a block and performs the state transition on the database and stores the block in the DB
@@ -352,7 +386,7 @@ fn block_env(header: &BlockHeader) -> BlockEnv {
         basefee: RevmU256::from(header.base_fee_per_gas), 
         difficulty: RevmU256::from_limbs(header.difficulty.0), 
         prevrandao: Some(header.prev_randao.as_fixed_bytes().into()), 
-        ..Default::default() 
+        blob_excess_gas_and_price: Some(BlobExcessGasAndPrice::new(header.excess_blob_gas.unwrap_or_default()))
     }
 }
 

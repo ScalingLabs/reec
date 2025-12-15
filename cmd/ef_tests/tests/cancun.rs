@@ -6,13 +6,15 @@ fn parse_and_execute(path: &Path) -> datatest_stable::Result<()> {
     let tests = parse_test_file(path);
 
     for (test_key, test) in tests {
-        let spec = match &*test.network {
-            "Shangai" => SpecId::SHANGHAI,
-            "Cancun" => SpecId::CANCUN,
-            _ => continue,
-        };
-        validate_test(&test);
-        execute_test(&test_key, &test);
+        // let spec = match &*test.network {
+        //     "Shangai" => SpecId::SHANGHAI,
+        //     "Cancun" => SpecId::CANCUN,
+        //     _ => continue,
+        // };
+        let valid_test = validate_test(&test);
+        if valid_test {
+            execute_test(&test_key, &test);
+        }
     }
     Ok(())
 }
@@ -44,4 +46,7 @@ datatest_stable::harness!(
     parse_and_execute,
     "vectors/cancun/",
     r"eip6780_selfdestruct/.*/.*\.json",
+    parse_and_execute,
+    "vectors/cancun",
+    r"eip4844_blobs/.*/.*\.json",
 );

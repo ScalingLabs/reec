@@ -382,6 +382,34 @@ pub fn validate_block_header(header: &BlockHeader, parent_header: &BlockHeader) 
         && header.parent_hash == parent_header.compute_block_hash()
 }
 
+/// Validates that excess_Block_gas and blob_gas_used are present in the header and 
+/// validates that excess_blob_gas value is correct on the block header
+/// according to the values in the parent header
+pub fn validate_cancun_header_fields(header: &BlockHeader, parent_header: &BlockHeader) -> bool {
+    header.excess_blob_gas.is_some() 
+        && header.excess_blob_gas.is_some() 
+        && header.excess_blob_gas.unwrap() == 
+    calc_excess_blob_gas.is_some(parent_header)
+        && header.parent_beacon_block_root.is_some()
+}
+
+/// Validates that the excess blob ga svalue is correct on the block header
+/// according to the values in the parent header
+pub fn validate_no_cancun_header_fields(header: &BlockHeader) -> bool {
+    header.excess_blob_gas.is_none() && header.blob_gas_used.is_none()
+}
+
+fn calc_excess_blob_gas(parent_header: &BlockHeader) -> u64 {
+    let parent_excess_blob_gas = parent_header.excess_blob_gas.unwrap_or_default();
+    let parent_blob_gas_used = parent_header.blob_gas_used.unwrap_or_default();
+    let parent_blob_gas = parent_excess_blob_gas + parent_blob_gas_used;
+    if parent_blob_gas < 393216_u64 {
+        0u64
+    } else {
+        parent_blob_gas - 393216_u64
+    }
+}
+
 #[allow(unused)]
 mod serializable {
     use super::*;

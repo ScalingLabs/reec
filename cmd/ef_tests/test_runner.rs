@@ -2,9 +2,9 @@ use std::{collections::HashMap, path::Path};
 use crate::types::TestUnit;
 use reec_core::{
     rlp::{decode::RLPDecode, encode::RLPEncode},
-    types::{Account as CoreAccount, Block as CoreBlock},
+    types::{Account as CoreAccount, Block as CoreBlock, BlockHeader as CoreBlockHeader},
 };
-use reec_evm::{evm_state, execute_block, EvmState};
+use reec_evm::{evm_state, execute_block, validate_block, EvmState};
 use reec_storage::{EngineType, Store};
 
 /// Tests the execute_block function
@@ -22,22 +22,18 @@ pub fn execute_test(test_key: &str, test: &TestUnit) {
 
    // Execute all blocks in the test
     for block_fixture in blocks.iter() {
-        let block: &CoreBlock = &block_fixture.block().clone().into();
+        // Won't panic because test has been validated
+        let block: &CoreBlock = &block_fixture.block().unwrap().clone().into();
 
         let execution_result = execute_block(block, &mut evm_state);
-        if block_fixture.expect_exception.is_some() {
-            assert!(
-                execution_result.is_err(),
-                "Expected transaction execution to fail on test: {}",
-                test_key
-            )
-        } else {
-            assert!(
-                execution_result.is_ok(),
-                "Transaction execution failed on test: {} with error: {}",
-                test_key,
-                execution_result.unwrap_err()
-            )
+        match execution_result {
+            Err(error) => {
+                assert!(block_fixture.expect_exception.is_some(), "Transaction execution unexpectedly failed on test: {}, with error {}", test_key, error);
+                return;
+            }
+            Ok(()) => {
+                assert!(block_fixture.expect_exception.is_none(), "Expect transaction execution to fail in test: {} with error: {}", test_key, block_fixture.expect_exception.clone().unwrap())
+            }
         }
     }
     check_poststate_against_db(test_key, post, evm_state.database());
@@ -49,26 +45,49 @@ pub fn parse_test_file(path: &Path) -> HashMap<String, TestUnit> {
     tests
 }
 
-pub fn validate_test(test: &TestUnit) {
+/// Perfroms pre-execution validations for the test cases.
+/// Checks that rlp decoding works bidirectionally and tests that [validate_block] function.
+pub fn validate_test(test: &TestUnit) -> bool {
     // Check that the decoded genesis block header matches the deserialized one
     let genesis_rlp = test.genesis_rlp.clone();
     let decoded_block = CoreBlock::decode(&genesis_rlp).unwrap();
-    assert_eq!(decoded_block.header, test.genesis_block_header.clone().into());
-
-    // Checks that blocks can be decoded
+    let genesis_block_header = CoreBlockHeader::from(test.genesis_block_header.clone());
+    assert_eq!(decoded_block.header, genesis_block_header);
+    // Build pre state
+    let evm_state = build_evm_state_for_test(test);
+    // Setup chain config
+    let chain_config = test.network.chain_config();
+    evm_state.database().set_chain_config(chain_config).expect("Failed to write to DB");
+    // Checks that all blocks are valid, tests validate_block function
+    let mut parent_block_header = genesis_block_header;
     for block in &test.blocks {
+        if let Some(inner_block) = block.block() {
+            let core_block = CoreBlock::from(inner_block.clone());
+            let valid_block = validate_block(&core_block, &parent_block_header, &evm_state);
+            if !valid_block {
+                assert!(block.expect_exception.is_some());
+                return false;
+            }
+            parent_block_header = core_block.header;
+        }
+        // check that blocks can be decoded, only when the block has already been validated
         match CoreBlock::decode(block.rlp.as_ref()) {
             Ok(decoded_block) => {
                 // check that the decoded block matches the desrialized one
-                assert_eq!(decoded_block, (block.block().clone()).into());
+                let inner_block = block.block().unwrap();
+                assert_eq!(decoded_block, (inner_block.clone()).into());
                 let mut rlp_block = Vec::new();
                 // check that encoding the decoded block matches the rlp field
                 decoded_block.encode(&mut rlp_block);
                 assert_eq!(rlp_block, block.rlp.to_vec());
             }
-            Err(_) => assert!(block.expect_exception.is_some())
+            Err(_) => {
+                assert!(block.expect_exception.is_some() && test.is_rlp_only_test());
+                return false;
+            }
         }
     }
+    true
 }
 
 /// Creates an in-memory DB for evm execution and loads the prestate accounts
