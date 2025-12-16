@@ -8,6 +8,7 @@ reec-rpc.workspace = true
 reec-core.workspace = true
 reec-net.workspace = true
 reec-storage.workspace = true
+reec-evm.workspace = true
 
 
 clap = { version = "4.5.27", features = ["cargo"] }

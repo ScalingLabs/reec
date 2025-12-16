@@ -2063,6 +2063,7 @@ dependencies = [
  "clap",
  "ethereum-types",
  "reec-core",
+ "reec-evm",
  "reec-net",
  "reec-rpc",
  "reec-storage",
