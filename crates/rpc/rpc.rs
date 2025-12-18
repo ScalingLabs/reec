@@ -17,6 +17,7 @@ use utils::{RpcErr, RpcErrorMetadata, RpcErrorResponse, RpcRequest, RpcSuccessRe
 mod engine;
 mod utils;
 mod eth;
+mod types;
 mod admin;
 
 
