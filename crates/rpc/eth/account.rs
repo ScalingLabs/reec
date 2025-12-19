@@ -5,7 +5,7 @@ use serde_json::Value;
 use tracing::info;
 
 use crate::utils::RpcErr;
-use reec_core::{Address, H256};
+use reec_core::{Address, BigEndianHash, H256};
 
 use super::block::BlockIdentifier;
 
@@ -84,5 +84,6 @@ pub fn get_storage_at(request: &GetStorageAtRequest, storage: Store) -> Result<V
     info!("Requested storage slot {} of account {} at block {}", request.storage_slot, request.address, request.block);
     let storage_value = storage.get_storage_at(request.address, request.storage_slot)?.unwrap_or_default();
     
+    let storage_value = H256::from_uint(&storage_value);
     serde_json::to_value(format!("{:#x}", storage_value)).map_err(|_| RpcErr::Internal)
 }
