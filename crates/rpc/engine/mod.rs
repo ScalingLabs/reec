@@ -5,7 +5,7 @@ use reec_core::{
 use reec_evm::{evm_state, execute_block};
 use reec_storage::Store;
 use serde_json::{json, Value};
-use tracing::info;
+use tracing::{info, warn};
 
 use crate::RpcErr;
 
@@ -19,7 +19,7 @@ pub struct NewPayloadV3Request {
 
 impl NewPayloadV3Request {
     pub fn parse(params: &Option<Vec<Value>>) -> Option<NewPayloadV3Request> {
-        let params = params.as_ref();
+        let params = params.as_ref()?;
         if params.len() != 3 {
             return None;
         }
@@ -85,6 +85,19 @@ pub fn new_payload_v3(request: NewPayloadV3Request, storage: Store) -> Result<Pa
         .collect();
     if request.expected_blob_versioned_hashes != blob_versioned_hashes {
         return Ok(PayloadStatus::invalid_with_err("Invalid blob_versioned_hashes"));
+    }
+
+    // Check that the incoming block extends the current chain
+    let last_block_number = storage.get_latest_block_number()?.ok_or(RpcErr::Internal)?;
+    if last_block_number <= block.header.number {
+        // Check if we already have this block stored
+        if storage.get_block_number(block_hash).map_err(|_| RpcErr::internal)?.is_some_and(|num| num == block.header.number) {
+            return Ok(PayloadStatus::valid_with_hash(block_hash));
+        }
+        warn!("Should start reorg but it is not supported yet");
+        return Err(RpcErr::Internal);
+    } else if block.header.number != last_block_number + 1 {
+        return Ok(PayloadStatus::syncing());
     }
 
     // Fetch parent block header and validate current header
