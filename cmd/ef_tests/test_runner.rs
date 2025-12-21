@@ -99,7 +99,6 @@ pub fn build_evm_state_for_test(test: &TestUnit) -> EvmState {
         test.genesis_block_header.clone().into(),
     ).unwrap();
     store.add_block_number(test.genesis_block_header.hash, block_number).unwrap();
-    let _ = store.update_latest_block_number(block_number);
     for (address, account) in &test.pre {
         let account: CoreAccount = account.clone().into();
         store.add_account(*address, account).expect("Failed to write to test DB")
