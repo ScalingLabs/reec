@@ -1,28 +1,46 @@
-use std::ops::Add;
-
-use reec_storage::Store;
+use reec_storage::{error::StoreError, Store};
 use serde_json::Value;
+use std::fmt::Display;
 use tracing::info;
 
 use crate::utils::RpcErr;
-use reec_core::{Address, BigEndianHash, H256};
+use reec_core::{types::BlockNumber, Address, BigEndianHash, H256};
 
 use super::block::BlockIdentifier;
+use reec_core::types::BlockHash;
+use serde::Deserialize;
+
+#[derive(Deserialize, Clone, Debug)]
+#[serde(untagged)]
+pub enum BlockIdentifierOrHash {
+    Identifier(BlockIdentifier),
+    Hash(BlockHash)
+}
+
+impl BlockIdentifierOrHash {
+    #[allow(unused)]
+    pub fn resolve_block_number(&self, storage: &Store) -> Result<Option<BlockNumber>, StoreError> {
+        match self {
+            BlockIdentifierOrHash::Identifier(id) => id.resolve_block_number(storage),
+            BlockIdentifierOrHash::Hash(block_hash) => storage.get_block_number(*block_hash),
+        }
+    }
+}
 
 pub struct GetBalanceRequest {
     pub address: Address,
-    pub block: BlockIdentifier,
+    pub block: BlockIdentifierOrHash,
 }
 
 pub struct GetCodeRequest {
     pub address: Address,
-    pub block: BlockIdentifier,
+    pub block: BlockIdentifierOrHash,
 }
 
 pub struct GetStorageAtRequest {
     pub address: Address,
     pub storage_slot: H256,
-    pub block: BlockIdentifier,
+    pub block: BlockIdentifierOrHash,
 }
 
 impl GetBalanceRequest {
@@ -86,4 +104,13 @@ pub fn get_storage_at(request: &GetStorageAtRequest, storage: Store) -> Result<V
     
     let storage_value = H256::from_uint(&storage_value);
     serde_json::to_value(format!("{:#x}", storage_value)).map_err(|_| RpcErr::Internal)
+}
+
+impl Display for BlockIdentifierOrHash {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            BlockIdentifierOrHash::Identifier(id) => id.fmt(f),
+            BlockIdentifierOrHash::Hash(hash) => hash.fmt(f),
+        }
+    }
 }
