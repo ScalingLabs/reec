@@ -1,0 +1,13 @@
+[package]
+name = "reec-chain"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+thiserror.workspace = true
+reec-core.workspace = true
+reec-storage.workspace = true
+reec-evm.workspace = true
+
+[lib]
+path = "./chain.rs"

@@ -13,6 +13,7 @@ tracing-subscriber.workspace = true
 reec-core.workspace = true
 reec-storage.workspace = true
 reec-evm.workspace = true
+reec-chain.workspace = true
 hex.workspace = true
 
 [lib]

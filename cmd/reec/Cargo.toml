@@ -4,6 +4,7 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+reec-chain.workspace = true
 reec-rpc.workspace = true
 reec-core.workspace = true
 reec-net.workspace = true

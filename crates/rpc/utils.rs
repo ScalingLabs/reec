@@ -3,6 +3,7 @@ use reec_storage::error::StoreError;
 use serde::{Serialize, Deserialize};
 use serde_json::Value;
 
+#[derive(Debug)]
 pub enum RpcErr {
     MethodNotFound,
     BadParams,

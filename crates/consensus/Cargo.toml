@@ -1,9 +1,0 @@
-[package]
-name = "reec-consensus"
-version.workspace = true
-edition.workspace = true
-
-[dependencies]
-
-[lib]
-path = "./consensus.rs"

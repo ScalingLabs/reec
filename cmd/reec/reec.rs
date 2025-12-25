@@ -1,5 +1,5 @@
+use reec_chain::add_block;
 use reec_core::types::{Block, Genesis};
-use reec_evm::{evm_state, execute_block};
 use reec_net::bootnode::BootNode;
 use reec_storage::{EngineType, Store};
 use std::{
@@ -52,9 +52,8 @@ async fn main() {
     if let Some(chain_rlp_path) = matches.get_one::<String>("import") {
         let blocks = read_chain_file(chain_rlp_path);
         let size = blocks.len();
-        let mut state = evm_state(store.clone());
         for block in blocks {
-            execute_block(&block, &mut state).expect("Failed to add block to blockchain");
+            let _ = add_block(&block, store.clone());
         }
         info!("Added {} blocks to blockhash", size);
     }

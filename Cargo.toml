@@ -1,10 +1,10 @@
 [workspace]
 members = [
-    "crates/storage",
+    "crates/chain",
     "crates/core",
-    "crates/rpc",
-    "crates/consensus",
     "crates/net", 
+    "crates/rpc",
+    "crates/storage",
     "crates/evm",
     "cmd/reec", 
     "cmd/ef_tests",
@@ -17,7 +17,7 @@ version = "0.1.0"
 edition = "2021"
 
 [workspace.dependencies]
-reec-consensus = { path = "./crates/consesnsus"}
+reec-chain = { path = "./crates/chain"}
 reec-core = { path = "./crates/core" }
 reec-net = { path = "./crates/net" }
 reec-rpc = { path = "./crates/rpc" }

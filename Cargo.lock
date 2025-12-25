@@ -933,8 +933,8 @@ dependencies = [
  "datatest-stable",
  "hex",
  "lazy_static",
+ "reec-chain",
  "reec-core",
- "reec-evm",
  "reec-storage",
  "serde",
  "serde_json",
@@ -2001,8 +2001,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "reec-consensus"
+name = "reec-chain"
 version = "0.1.0"
+dependencies = [
+ "reec-core",
+ "reec-evm",
+ "reec-storage",
+ "thiserror 1.0.69",
+]
 
 [[package]]
 name = "reec-core"
@@ -2062,6 +2068,7 @@ dependencies = [
  "anyhow",
  "clap",
  "ethereum-types",
+ "reec-chain",
  "reec-core",
  "reec-evm",
  "reec-net",
@@ -2079,6 +2086,7 @@ version = "0.1.0"
 dependencies = [
  "axum",
  "hex",
+ "reec-chain",
  "reec-core",
  "reec-evm",
  "reec-storage",
