@@ -10,7 +10,8 @@ use engine::{ExchangeCapabilitiesRequest, NewPayloadV3Request};
 use eth::{
     account::{self, GetBalanceRequest, GetCodeRequest, GetStorageAtRequest},
     block::{self, CreateAccessListRequest, GetBlockByHashRequest, GetBlockByNumberRequest, GetBlockReceiptsRequest, GetBlockTransactionCountByNumberRequest, GetTransactionByBlockHashAndIndexRequest, GetTransactionByBlockNumberAndIndexRequest, GetTransactionByHashRequest, GetTransactionReceiptRequest}, 
-    client
+    client,
+    transaction::{self, CallRequest},
 };
 use utils::{RpcErr, RpcErrorMetadata, RpcErrorResponse, RpcRequest, RpcSuccessResponse};
 
@@ -117,6 +118,10 @@ pub fn map_requests(req: &RpcRequest, storage: Store) -> Result<Value, RpcErr> {
             block::create_access_list(&request, storage)
         }
         "eth_blockNumber" => block::block_number(storage),
+        "eth_call" => {
+            let request = CallRequest::parse(&req.params).ok_or(RpcErr::BadParams)?;
+            transaction::call(&request, storage)
+        }
         "engine_forkchoiceUpdatedV3" => engine::forkchoice_Updated_V3(),
         "engine_newPayloadV3" => {
             let request = NewPayloadV3Request::parse(&req.params).ok_or(RpcErr::BadParams)?;
