@@ -231,7 +231,7 @@ impl Transaction {
     }
 
     pub fn compute_hash(&self) -> H256 {
-        keccak_hash::keccak(self.encode_to_vec())
+        keccak_hash::keccak(self.encode_canonical_to_vec())
     }
 
     pub fn receipt_info(&self, index: u64) -> ReceiptTxInfo {
@@ -804,8 +804,8 @@ mod serde_impl {
                     .collect::<Vec<_>>(),
             )?;
             struct_serializer.serialize_field("chainId", &format!("{:#x}", self.chain_id))?;
-            struct_serializer
-                .serialize_field("yParity", &format!("{:#x}", self.signature_y_parity as u8))?;
+            struct_serializer.serialize_field("yParity", &format!("{:#x}", self.signature_y_parity as u8))?;
+            struct_serializer.serialize_field("v", &format!("{:#x}", self.signature_y_parity as u8))?; // added to match Hive tests
             struct_serializer.serialize_field("r", &self.signature_r)?;
             struct_serializer.serialize_field("s", &self.signature_s)?;
             struct_serializer.end()
@@ -861,29 +861,15 @@ mod serde_impl {
             struct_serializer.serialize_field("gas", &format!("{:#x}", self.gas))?;
             struct_serializer.serialize_field("value", &self.value)?;
             struct_serializer.serialize_field("input", &format!("0x{:x}", self.data))?;
-            struct_serializer.serialize_field(
-                "maxPriorityFeePerGas",
-                &format!("{:#x}", self.max_priority_fee_per_gas),
-            )?;
-            struct_serializer
-                .serialize_field("maxFeePerGas", &format!("{:#x}", self.max_fee_per_gas))?;
-            struct_serializer.serialize_field(
-                "maxFeePerBlobGas",
-                &format!("{:#x}", self.max_fee_per_blob_gas),
-            )?;
-            struct_serializer.serialize_field(
-                "accessList",
-                &self
-                    .access_list
-                    .iter()
-                    .map(AccessListEntry::from)
-                    .collect::<Vec<_>>(),
-            )?;
-            struct_serializer
-                .serialize_field("blobVersionedHahses", &self.blob_versioned_hashes)?;
+            struct_serializer.serialize_field("maxPriorityFeePerGas",&format!("{:#x}", self.max_priority_fee_per_gas),)?;
+            struct_serializer.serialize_field("maxFeePerGas", &format!("{:#x}", self.max_fee_per_gas))?;
+            struct_serializer.serialize_field("gasPrice", &format!("{:#x}", self.max_fee_per_gas))?;
+            struct_serializer.serialize_field("maxFeePerBlobGas",&format!("{:#x}", self.max_fee_per_blob_gas),)?;
+            struct_serializer.serialize_field("accessList",&self.access_list.iter().map(AccessListEntry::from).collect::<Vec<_>>(),)?;
+            struct_serializer.serialize_field("blobVersionedHahses", &self.blob_versioned_hashes)?;
             struct_serializer.serialize_field("chainId", &format!("{:#x}", self.chain_id))?;
-            struct_serializer
-                .serialize_field("yParity", &format!("{:#x}", self.signature_y_parity as u8))?;
+            struct_serializer.serialize_field("yParity", &format!("{:#x}", self.signature_y_parity as u8))?;
+            struct_serializer.serialize_field("v", &format!("{:#x}", self.signature_y_parity as u8))?; // added to match Hive test
             struct_serializer.serialize_field("r", &self.signature_r)?;
             struct_serializer.serialize_field("s", &self.signature_s)?;
             struct_serializer.end()
@@ -958,6 +944,34 @@ mod tests {
         let expected_root = hex!("8151d548273f6683169524b66ca9fe338b9ce42bc3540046c828fd939ae23bcb");
         let result = compute_transactions_root(&body.transactions);
         assert_eq!(result, expected_root.into());
+    }
+    
+    #[test]
+    fn test_compute_hash() {
+        // taken from Hive
+        let tx_eip2930 = EIP2930Transaction {
+            chain_id: 3503995874084926u64,
+            nonce: 7,
+            gas_price: 0x2dbf1f9a,
+            gas_limit: 0x186A0,
+            to: TxKind::Call(hex!("7dcd17433742f4c0ca53122ab541d0ba67fc27df").into()),
+            value: 2.into(),
+            data: Bytes::from(&b"\xdbS\x06$\x8e\x03\x13\xe7emit"[..]),
+            access_list: vec![(
+                hex!("7dcd17433742f4c0ca53122ab541d0ba67fc27df").into(),
+                vec![
+                    hex!("0000000000000000000000000000000000000000000000000000000000000000").into(),
+                    hex!("a3d07a7d68fbd49ec2f8e6befdd86c885f86c272819f6f345f365dec35ae6707").into(),
+                ],
+            )],
+            signature_y_parity: false,
+            signature_r: U256::from_dec_str("75813812796588349127366022588733264074091236448495248199152066031778895768879").unwrap(),
+            signature_s: U256::from_dec_str("25476208226281085290728123165613764315157904411823916642262684106502155457829").unwrap(),
+        };
+        let tx = Transaction::EIP2930Transaction(tx_eip2930);
+        let expected_hash = hex!("a0762610d794acddd2dca15fb7c437ada3611c886f3bea675d53d8da8a6c41b2");
+        let hash = tx.compute_hash();
+        assert_eq!(hash, expected_hash.into());
     }
 
     #[test]
