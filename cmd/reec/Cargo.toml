@@ -12,6 +12,8 @@ reec-storage.workspace = true
 reec-evm.workspace = true
 
 
+bytes.workspace = true
+hex.workspace = true
 clap = { version = "4.5.27", features = ["cargo"] }
 ethereum-types.workspace = true
 tracing.workspace = true
@@ -19,6 +21,7 @@ tracing-subscriber.workspace = true
 serde_json.workspace = true
 tokio = { version = "1.38.0", features = ["full"] }
 anyhow = "1.0.86"
+rand = "0.8.5"
 
 [[bin]]
 name = "reec"

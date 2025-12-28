@@ -1,6 +1,12 @@
+use crate::authentication::{validate_jwt_authentication, AuthenticationError};
+use bytes::Bytes;
 use std::{future::IntoFuture, net::SocketAddr};
 use axum::{http::request, routing::post, Json, Router};
-use serde_json::Value;
+use axum_extra::{
+    headers::{authorization::Bearer, Authorization},
+    TypedHeader,
+};
+use serde_json::{json,Value};
 use tracing::info;
 use tokio::net::TcpListener;
 use axum::extract::State;
@@ -16,20 +22,26 @@ use eth::{
 };
 use utils::{RpcErr, RpcErrorMetadata, RpcErrorResponse, RpcRequest, RpcSuccessResponse};
 
-mod engine;
-mod utils;
-mod eth;
-mod types;
 mod admin;
+mod engine;
+mod eth;
+mod authentication;
+mod types;
+mod utils;
 
+#[derive(Debug, Clone)]
+pub struct RpcApiContext {
+    storage: Store,
+    jwt_secret: Bytes,
+}
 
-pub async fn start_api(http_addr: SocketAddr, authrpc_addr: SocketAddr, storage: Store) {
-    let http_router = Router::new().route("/", post(handle_http_request)).with_state(storage.clone());
+pub async fn start_api(http_addr: SocketAddr, authrpc_addr: SocketAddr, storage: Store, jwt_secret: Bytes) {
+    let http_router = Router::new().route("/", post(handle_http_request)).with_state(service_context.clone());
     let http_listener = TcpListener::bind(http_addr).await.unwrap();
     let http_server = axum::serve(http_listener, http_router).with_graceful_shutdown(shutdown_signal()).into_future();
     info!("HTTP Server listening on {}", http_addr);
 
-    let authrpc_router = Router::new().route("/", post(handle_authrpc_request)).with_state(storage);
+    let authrpc_router = Router::new().route("/", post(handle_authrpc_request)).with_state(service_context);
     let authrpc_listener = TcpListener::bind(authrpc_addr).await.unwrap();
     let authrpc_server = axum::serve(authrpc_listener, authrpc_router).with_graceful_shutdown(shutdown_signal()).into_future();
     info!("AUTH-RPC Server listening on {}", authrpc_addr);
@@ -41,19 +53,49 @@ async fn shutdown_signal(){
     tokio::signal::ctrl_c().await.expect("Failed to listen to the shutdown signal");
 }
 
-pub async fn handle_authrpc_request(State(storage): State<Store>, body: String) -> Json<Value>{
-    let req: RpcRequest = serde_json::from_str(&body).unwrap();
-    let res = match map_requests(&req, storage.clone()) {
-        res @ Ok(_) => res,
-        _ => map_internal_requests(&req, storage),
-    };
-    rpc_response(req.id, res)
+pub async fn handle_authrpc_request(State(service_context): State<RpcApiContext>, auth_header: Option<TypedHeader<Authorization<Bearer>>>, body: String) -> Json<Value>{
+    if auth_header.is_none() {
+        return Json(json!({"jsonrpc": "2.0", "error": {"code": -32000, "message": "Authorization header missing"}, "id": null}),);
+    }
+    let TypedHeader(auth_header) = auth_header.unwrap();
+    let storage = service_context.storage;
+    let secret = service_context.jwt_secret;
+    let token = auth_header.token();
+    // Validate the JWT
+    match validate_jwt_authentication(token, secret) {
+        Err(AuthenticationError::InvalidIssuedAtClaim) => Json(json!({
+            "jsonrpc": "2.0",
+            "error": {
+                "code": -32000,
+                "message": "Invalid iat claim"
+            },
+            "id": null
+        })),
+        Err(AuthenticationError::TokenDecodingError) => Json(json!({
+            "jsonrpc": "2.0",
+            "error": {
+                "code": -32000,
+                "message": "Invalid or missing token"
+            },
+            "id": null
+        })),
+        Ok(()) => {
+            // Proceed with the request
+            let req: RpcRequest = serde_json::from_str(&body).unwrap();
+            let res = match map_requests(&req, storage.clone()) {
+                res @ Ok(_) => res,
+                _ => map_internal_requests(&req, storage),
+            };
+            rpc_response(req.id, res)
+        }
+    }
 }
 
-pub async fn handle_http_request(State(storage): State<Store>, body: String) -> Json<Value> {
+pub async fn handle_http_request(State(service_context): State<RpcApiContext>, body: String) -> Json<Value> {
+    let storage = service_context.storage;
     let req: RpcRequest = serde_json::from_str(&body).unwrap();
 
-    let res = map_requests(&req, storage);
+    let res = map_requests(&req, storage.clone());
     rpc_response(req.id, res)
 }
 
