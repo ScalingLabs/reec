@@ -1,24 +1,34 @@
-FROM rust:1.79 AS buider
+FROM rust:1.79 AS chef
 
 RUN apt-get update && apt-get install -y \ 
 build-essential \
-libclang-dev \
-libc6 \
-libssl-dev \
-ca-certificates \
-&& rm -rf /var/lib/apt/lists/*
+	libclang-dev \
+	libc6 \
+	libssl-dev \
+	ca-certificates \
+	&& rm -rf /var/lib/apt/lists/*
+RUN cargo install cargo-chef
 
-WORKDIR /usr/src/reec
+WORKDIR /reec
+
+FROM chef AS planner
+COPY . .
+# Determine the crates that need to be built from dependencies
+RUN cargo chef prepare --recipe-path recipe.json
+
+FROM chef AS builder
+COPY --from=planner /reec/recipe.json recipe.json 
+# Build dependencies only, these remained cached
+RUN cargo chef cook --release --recipe-path recipe.json 
 
 COPY . .
-
 RUN cargo build --release
 
 FROM ubuntu:24.04
 
 WORKDIR /usr/local/bin
 
-COPY --from=buider /usr/src/reec/target/release/reec .
+COPY --from=buider reec/target/release/reec .
 
 EXPOSE 8545
 
