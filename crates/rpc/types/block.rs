@@ -90,7 +90,7 @@ impl FullBlockBody {
 #[cfg(test)]
 mod test {
     use bytes::Bytes;
-    use ethereum_rust_core::{
+    use reec_core::{
         types::{EIP1559Transaction, Transaction, TxKind},
         Address, Bloom, H256, U256,
     };
