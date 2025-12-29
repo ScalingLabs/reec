@@ -7,6 +7,7 @@ use reec_core::{
     types::{AccountInfo, BlockBody, BlockHash, BlockHeader, Receipt},
     Address, H256
 };
+use ethereum_types::U256;
 
 #[cfg(feature = "libmdbx")]
 use libmdbx::orm::{Decodable, Encodable};
@@ -19,11 +20,6 @@ pub type AccountCodeRLP = Rlp<Vec<u8>>;
 pub type AccountCodeHashRLP = Rlp<H256>;
 pub type AccountCodeRLP = Rlp<Bytes>;
 
-// TODO: these structs were changed after a merge
-// See if we can reuse Rlp struct
-// pub struct AccountStorageKeyRLP(pub [u8; 32]);
-// pub struct AccountStorageValueRLP(pub [u8; 32]);
-
 // Block types
 pub type BlockHashRLP = Rlp<BlockHash>;
 pub type BlockHeaderRLP = Rlp<BlockHeader>;
@@ -31,6 +27,7 @@ pub type BlockBodyRLP = Rlp<BlockBody>;
 
 // Receipts types
 pub type ReceiptRLP = Rlp<Receipt>;
+pub type BlockTotalDifficultyRLP = Rlp<U256>;
 
 // Transaction Types
 pub type TransactionHashRLP = Rlp<H256>;

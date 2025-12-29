@@ -227,7 +227,7 @@ pub fn get_transaction_by_hash(
         "Requested transaction with hash: {}",
         request.transaction_hash,
     );
-    let transaction: ethereum_rust_core::types::Transaction =
+    let transaction: reec_core::types::Transaction =
         match storage.get_transaction_by_hash(request.transaction_hash)? {
             Some(transaction) => transaction,
             _ => return Ok(Value::Null),
