@@ -21,7 +21,7 @@ use engine::{
 use eth::{
     account::{self, GetBalanceRequest, GetCodeRequest, GetStorageAtRequest},
     block::{self, GetBlockByHashRequest, GetBlockByNumberRequest, GetBlockReceiptsRequest,
-        GetBlockTransactionCountByNumberRequest,}, 
+        GetBlockTransactionCountRequest,}, 
     client,
     transaction::{self, CallRequest, CreateAccessListRequest, GetTransactionByBlockHashAndIndexRequest, GetTransactionByHashRequest, GetTransactionReceiptRequest},
 };
@@ -130,7 +130,12 @@ pub fn map_eth_requests(req: &RpcRequest, storage: Store) -> Result<Value, RpcEr
             account::get_storage_at(&request, storage)
         }
         "eth_getBlockTransactionCountByNumber" => {
-            let request = GetBlockTransactionCountByNumberRequest::parse(&req.params).ok_or(RpcErr::BadParams)?;
+            let request = GetBlockTransactionCountRequest::parse(&req.params).ok_or(RpcErr::BadParams)?;
+            block::get_block_transaction_count(&request, storage)
+        }
+        "eth_getBlockTransactionCountByHash" => {
+            let request = GetBlockTransactionCountRequest::parse(&req.params).ok_or(RpcErr::BadParams)?;
+            block::get_block_transaction_count(&request, storage)
         }
         "eth_getTransactionByBlockNumberAndIndex" => {
             let request = GetTransactionByBlockNumberAndIndexRequest::parse(&req.params).ok_or(RpcErr::BadParams)?;

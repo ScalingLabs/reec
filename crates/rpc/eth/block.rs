@@ -8,6 +8,8 @@ use reec_core::{
     H256, U256, types::{BlockHash, BlockNumber, ReceiptWithTxAndBlockInfo}
 };
 use reec_storage::{error::StoreError, Store};
+use super::account::BlockIdentifierOrHash;
+
 pub struct GetBlockByNumberRequest {
     pub block: BlockIdentifier,
     pub hydrated: bool,
@@ -18,8 +20,8 @@ pub struct GetBlockByHashRequest {
     pub hydrated: bool,
 }
 
-pub struct GetBlockTransactionCountByNumberRequest {
-    pub block: BlockIdentifier,
+pub struct GetBlockTransactionCountRequest {
+    pub block: BlockIdentifierOrHash,
 }
 
 pub struct GetBlockReceiptsRequest {
@@ -86,13 +88,13 @@ impl GetBlockByHashRequest {
     }
 }
 
-impl GetBlockTransactionCountByNumberRequest {
-    pub fn parse(params: &Option<Vec<Value>>) -> Option<GetBlockTransactionCountByNumberRequest> {
+impl GetBlockTransactionCountRequest {
+    pub fn parse(params: &Option<Vec<Value>>) -> Option<GetBlockTransactionCountRequest> {
         let params = params.as_ref()?;
         if params.len() != 1 {
             return None;
         };
-        Some(GetBlockTransactionCountByNumberRequest { 
+        Some(GetBlockTransactionCountRequest { 
             block: serde_json::from_value(params[0].clone()).ok()? 
         })
     }
@@ -152,8 +154,8 @@ pub fn get_block_by_hash(request: &GetBlockByHashRequest, storage: Store) -> Res
     serde_json::to_value(&block).map_err(|_| RpcErr::Internal)
 }
 
-pub fn get_block_transaction_count_by_number(
-    request: &GetBlockByHashRequest,
+pub fn get_block_transaction_count(
+    request: &GetBlockTransactionCountRequest,
     storage: Store,
 ) -> Result<Value, RpcErr> {
     info!("Requested transaction count for block with number: {}", request.block);
