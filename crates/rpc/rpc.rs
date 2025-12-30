@@ -1,4 +1,4 @@
-use crate::authentication::{validate_jwt_authentication, AuthenticationError};
+use crate::authentication::authenticate;
 use bytes::Bytes;
 use std::{future::IntoFuture, net::SocketAddr};
 use axum::{http::request, routing::post, Json, Router};
@@ -6,10 +6,11 @@ use axum_extra::{
     headers::{authorization::Bearer, Authorization},
     TypedHeader,
 };
-use serde_json::{json,Value};
+use serde_json::{Value};
 use tracing::info;
 use tokio::net::TcpListener;
 use axum::extract::State;
+use reec_net::types::Node;
 
 use reec_storage::Store;
 use engine::{
@@ -24,7 +25,7 @@ use eth::{
     client,
     transaction::{self, CallRequest, CreateAccessListRequest, GetTransactionByBlockHashAndIndexRequest, GetTransactionByHashRequest, GetTransactionReceiptRequest},
 };
-use utils::{RpcErr, RpcErrorMetadata, RpcErrorResponse, RpcRequest, RpcSuccessResponse};
+use utils::{RpcErr, RpcErrorMetadata, RpcErrorResponse, RpcNamespace, RpcRequest, RpcSuccessResponse};
 
 mod admin;
 mod engine;
@@ -37,9 +38,15 @@ mod utils;
 pub struct RpcApiContext {
     storage: Store,
     jwt_secret: Bytes,
+    local_p2p_node: Node,
 }
 
-pub async fn start_api(http_addr: SocketAddr, authrpc_addr: SocketAddr, storage: Store, jwt_secret: Bytes) {
+pub async fn start_api(http_addr: SocketAddr, authrpc_addr: SocketAddr, storage: Store, jwt_secret: Bytes, local_p2p_node: Node) {
+    let service_context = RpcApiContext {
+        storage: storage.clone(),
+        jwt_secret,
+        local_p2p_node,
+    };
     let http_router = Router::new().route("/", post(handle_http_request)).with_state(service_context.clone());
     let http_listener = TcpListener::bind(http_addr).await.unwrap();
     let http_server = axum::serve(http_listener, http_router).with_graceful_shutdown(shutdown_signal()).into_future();
@@ -58,38 +65,14 @@ async fn shutdown_signal(){
 }
 
 pub async fn handle_authrpc_request(State(service_context): State<RpcApiContext>, auth_header: Option<TypedHeader<Authorization<Bearer>>>, body: String) -> Json<Value>{
-    if auth_header.is_none() {
-        return Json(json!({"jsonrpc": "2.0", "error": {"code": -32000, "message": "Authorization header missing"}, "id": null}),);
-    }
-    let TypedHeader(auth_header) = auth_header.unwrap();
     let storage = service_context.storage;
     let secret = service_context.jwt_secret;
-    let token = auth_header.token();
-    // Validate the JWT
-    match validate_jwt_authentication(token, secret) {
-        Err(AuthenticationError::InvalidIssuedAtClaim) => Json(json!({
-            "jsonrpc": "2.0",
-            "error": {
-                "code": -32000,
-                "message": "Invalid iat claim"
-            },
-            "id": null
-        })),
-        Err(AuthenticationError::TokenDecodingError) => Json(json!({
-            "jsonrpc": "2.0",
-            "error": {
-                "code": -32000,
-                "message": "Invalid or missing token"
-            },
-            "id": null
-        })),
+    let req: RpcRequest = serde_json::from_str(&body).unwrap();
+    match authenticate(secret, auth_header) {
+        Err(error) => rpc_response(req.id, Err(error)),
         Ok(()) => {
             // Proceed with the request
-            let req: RpcRequest = serde_json::from_str(&body).unwrap();
-            let res = match map_requests(&req, storage.clone()) {
-                res @ Ok(_) => res,
-                _ => map_internal_requests(&req, storage),
-            };
+            let res = map_auth_rpc_requests(&req, storage);
             rpc_response(req.id, res)
         }
     }
@@ -97,24 +80,33 @@ pub async fn handle_authrpc_request(State(service_context): State<RpcApiContext>
 
 pub async fn handle_http_request(State(service_context): State<RpcApiContext>, body: String) -> Json<Value> {
     let storage = service_context.storage;
+    let local_p2p_node = service_context.local_p2p_node;
     let req: RpcRequest = serde_json::from_str(&body).unwrap();
 
-    let res = map_requests(&req, storage.clone());
+    let res = map_http_requests(&req, storage, local_p2p_node);
     rpc_response(req.id, res)
 }
 
 /// Handle requests that can come from either clients or other users
-pub fn map_requests(req: &RpcRequest, storage: Store) -> Result<Value, RpcErr> {
+pub fn map_http_requests(req: &RpcRequest, storage: Store, local_p2p_node: Node) -> Result<Value, RpcErr> {
+    match req.namespace() {
+        Ok(RpcNamespace::Eth) => map_eth_requests(req, storage),
+        Ok(RpcNamespace::Admin) => map_admin_requests(req, storage, local_p2p_node),
+        _ => Err(RpcErr::MethodNotFound),
+    }
+}
+
+// Handle requests from consensus client
+pub fn map_authrpc_requests(req: &RpcRequest, storage: Store) -> Result<Value, RpcErr> {
+    match req.namespace() {
+        Ok(RpcNamespace::Engine) => map_engine_requests(req, storage),
+        Ok(RpcNamespace::Eth) => map_eth_requests(req, storage),
+        _ => Err(RpcErr::MethodNotFound),
+    }
+}
+
+pub fn map_eth_requests(req: &RpcRequest, storage: Store) -> Result<Value, RpcErr> {
     match req.method.as_str() {
-        "engine_exchangeCapabilities" => {
-            let capabilities: ExchangeCapabilitiesRequest = req
-                .params.as_ref()
-                .ok_or(RpcErr::BadParams)?
-                .first()
-                .ok_or(RpcErr::BadParams).
-                and_then(|v| serde_json::from_value(v.clone()).map_err(|_| RpcErr::BadParams))?;
-            engine::exchange_capabilities(&capabilities)
-        }
         "eth_chainId" => client::chain_id(storage),
         "eth_syncing" => client::syncing(),
         "eth_getBlockByNumber" => {
@@ -169,6 +161,22 @@ pub fn map_requests(req: &RpcRequest, storage: Store) -> Result<Value, RpcErr> {
             let request = CallRequest::parse(&req.params).ok_or(RpcErr::BadParams)?;
             transaction::call(&request, storage)
         }
+         _ => Err(RpcErr::MethodNotFound),
+    }
+}
+
+pub fn map_engine_requests(req: &RpcRequest, storage: Store) -> Result<Value, RpcErr> {
+    match req.method.as_str() {
+        "engine_exchangeCapabilities" => {
+            let capabilities: ExchangeCapabilitiesRequest = req
+                .params
+                .as_ref()
+                .ok_or(RpcErr::BadParams)?
+                .first()
+                .ok_or(RpcErr::BadParams)
+                .and_then(|v| serde_json::from_value(v.clone()).map_err(|_| RpcErr::BadParams))?;
+            engine::exchange_capabilities(&capabilities)
+        }
         "engine_forkchoiceUpdatedV3" => {
             let request = ForkChoiceUpdatedV3::parse(&req.params).ok_or(RpcErr::BadParams)?;
             fork_choice::forkchoice_updated_v3(request, storage)
@@ -177,14 +185,19 @@ pub fn map_requests(req: &RpcRequest, storage: Store) -> Result<Value, RpcErr> {
             let request = NewPayloadV3Request::parse(&req.params).ok_or(RpcErr::BadParams)?;
             serde_json::to_value(paylod::new_payload_v3(request, storage)?).map_err(|_| RpcErr::Internal)
         }
-        "admin_nodeInfo" => admin::node_info(),
         _ => Err(RpcErr::MethodNotFound)
     }
 }
 
-/// Handle requests from other clients
-pub fn map_internal_requests(_req: &RpcRequest, _storage: Store) -> Result<Value, RpcErr> {
-    Err(RpcErr::MethodNotFound)
+pub fn map_admin_requests(
+    req: &RpcRequest,
+    storage: Store,
+    local_p2p_node: Node,
+) -> Result<Value, RpcErr> {
+    match req.method.as_str() {
+        "admin_nodeInfo" => admin::node_info(storage, local_p2p_node),
+        _ => Err(RpcErr::MethodNotFound),
+    }
 }
 
 fn rpc_response<E>(id: i32, res: Result<Value, E>) -> Json<Value>
@@ -210,9 +223,10 @@ where E: Into<RpcErrorMetadata>
 
 #[cfg(test)]
 mod tests {
+    use reec_core::types::ChainConfig;
     use reec_core_core::{
         types::{code_hash, AccountInfo, BlockHeader},
-        Address, Bytes, U256,
+        Address, Bytes, H512, U256,
     };
     use reec_storage::EngineType;
     use std::str::FromStr;
@@ -223,6 +237,22 @@ mod tests {
     // This is used to avoid failures due to field order and allow easier string comparisons for responses
     fn to_rpc_response_success_value(str: &str) -> serde_json::Value {
         serde_json::to_value(serde_json::from_str::<RpcSuccessResponse>(str).unwrap()).unwrap()
+    }
+
+    #[test]
+    fn admin_nodeinfo_request() {
+        let body = r#"{"jsonrpc":"2.0", "method":"admin_nodeInfo", "params":[], "id":1}"#;
+        let request: RpcRequest = serde_json::from_str(body).unwrap();
+        let local_p2p_node = example_p2p_node();
+        let storage =
+            Store::new("temp.db", EngineType::InMemory).expect("Failed to create test DB");
+        storage.set_chain_config(&example_chain_config()).unwrap();
+        let result = map_http_requests(&request, storage, local_p2p_node);
+        let rpc_response = rpc_response(request.id, result);
+        let expected_response = to_rpc_response_success_value(
+            r#"{"jsonrpc":"2.0","id":1,"result":{"enode":"enode://d860a01f9722d78051619d1e2351aba3f43f943f6f00718d1b9baa4101932a1f5011f16bb2b1bb35db20d6fe28fa0bf09636d26a87d31de9ec6203eeedb1f666@127.0.0.1:30303?discport=30303","id":"d860a01f9722d78051619d1e2351aba3f43f943f6f00718d1b9baa4101932a1f5011f16bb2b1bb35db20d6fe28fa0bf09636d26a87d31de9ec6203eeedb1f666","ip":"127.0.0.1","name":"reec/0.1.0/rust1.80","ports":{"discovery":30303,"listener":30303},"protocols":{"eth":{"chainId":3151908,"homesteadBlock":0,"daoForkBlock":null,"daoForkSupport":false,"eip150Block":0,"eip155Block":0,"eip158Block":0,"byzantiumBlock":0,"constantinopleBlock":0,"petersburgBlock":0,"istanbulBlock":0,"muirGlacierBlock":null,"berlinBlock":0,"londonBlock":0,"arrowGlacierBlock":null,"grayGlacierBlock":null,"mergeNetsplitBlock":0,"shanghaiTime":0,"cancunTime":0,"pragueTime":1718232101,"verkleTime":null,"terminalTotalDifficulty":0,"terminalTotalDifficultyPassed":true}}}}"#,
+        );
+        assert_eq!(rpc_response.to_string(), expected_response.to_string())
     }
 
     #[test]
@@ -247,8 +277,9 @@ mod tests {
         storage
             .add_account_info(address, account_info)
             .expect("Failed to write to test DB");
+        let local_p2p_node = example_p2p_node();
         // Process request
-        let result = map_requests(&request, storage);
+        let result = map_http_requests(&request, storage, local_p2p_node);
         let response = rpc_response(request.id, result);
         let expected_response = to_rpc_response_success_value(
             r#"{"jsonrpc":"2.0","id":1,"result":{"accessList":[],"gasUsed":"0x5208"}}"#,
@@ -295,7 +326,7 @@ mod tests {
             .add_account_code(code_hash, code)
             .expect("Failed to write to test DB");
         // Process request
-        let result = map_requests(&request, storage);
+        let result = map_http_requests(&request, storage, local_p2p_node);
         let response =
             serde_json::from_value::<RpcSuccessResponse>(rpc_response(request.id, result).0)
                 .expect("Request failed");
@@ -309,6 +340,39 @@ mod tests {
             response.result["accessList"],
             expected_response.result["accessList"]
         )
+    }
+
+    fn example_p2p_node() -> Node {
+        let node_id_1 = H512::from_str("d860a01f9722d78051619d1e2351aba3f43f943f6f00718d1b9baa4101932a1f5011f16bb2b1bb35db20d6fe28fa0bf09636d26a87d31de9ec6203eeedb1f666").unwrap();
+        Node {
+            ip: "127.0.0.1".parse().unwrap(),
+            udp_port: 30303,
+            tcp_port: 30303,
+            node_id: node_id_1,
+        }
+    }
+
+    fn example_chain_config() -> ChainConfig {
+        ChainConfig {
+            chain_id: 3151908_u64,
+            homestead_block: Some(0),
+            eip150_block: Some(0),
+            eip155_block: Some(0),
+            eip158_block: Some(0),
+            byzantium_block: Some(0),
+            constantinople_block: Some(0),
+            petersburg_block: Some(0),
+            istanbul_block: Some(0),
+            berlin_block: Some(0),
+            london_block: Some(0),
+            merge_netsplit_block: Some(0),
+            shanghai_time: Some(0),
+            cancun_time: Some(0),
+            prague_time: Some(1718232101),
+            terminal_total_difficulty: Some(0),
+            terminal_total_difficulty_passed: true,
+            ..Default::default()
+        }
     }
 }
 

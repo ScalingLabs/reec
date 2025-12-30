@@ -2,7 +2,10 @@ use bytes::Bytes;
 use reec_chain::add_block;
 use reec_core::types::{Block, Genesis};
 use reec_net::bootnode::BootNode;
+use reec_net::node_id_from_signing_key;
+use reec_net::types::Node;
 use reec_storage::{EngineType, Store};
+use k256::{ecdsa::SigningKey, elliptic_curve::rand_core::OsRng};
 use std::{
     fs::File,
     io,
@@ -50,7 +53,7 @@ async fn main() {
             _ => Store::new("storage.db", EngineType::InMemory)
     }.expect("Failed to create Store");
     let genesis = read_genesis_file(genesis_file_path);
-    store.add_initial_state(genesis).expect("Failed to create genesis block");
+    store.add_initial_state(genesis.clone()).expect("Failed to create genesis block");
 
     if let Some(chain_rlp_path) = matches.get_one::<String>("import") {
         let blocks = read_chain_file(chain_rlp_path);
@@ -62,8 +65,25 @@ async fn main() {
     }
 
     let jwt_secret = read_jwtsecret_file(authrpc_jwtsecret);
-    let rpc_api = reec_rpc::start_api(http_socket_addr, authrpc_socket_addr, store, jwt_secret);
-    let networking = reec_net::start_network(udp_socket_addr, tcp_socket_addr, bootnodes);
+    let signer = SigningKey::random(&mut OsRng);
+    let local_node_id = node_id_from_signing_key(&signer);
+
+    let local_p2p_node = Node {
+        id: udp_socket_addr.ip(),
+        udp_port: udp_socket_addr.port(),
+        tcp_port: tcp_socket_addr.port(),
+        node_id: local_node_id,
+    };
+
+    let rpc_api = reec_rpc::start_api(
+        http_socket_addr, 
+        authrpc_socket_addr, 
+        store, 
+        jwt_secret,
+        local_p2p_node,
+    );
+
+    let networking = reec_net::start_network(udp_socket_addr, tcp_socket_addr, bootnodes, signer);
     try_join!(tokio::spawn(rpc_api), tokio::spawn(networking)).unwrap();
 }
 

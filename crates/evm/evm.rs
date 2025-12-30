@@ -95,13 +95,13 @@ fn run_evm(
     spec_id: SpecId,
 ) -> Result<ExecutionResult, EvmError> {
     let tx_result = {
-        let chain_id = state.database().get_chain_id()?.map(|ci| ci.low_u64());
+        let chain_id = state.database().get_chain_id()?;
         let mut evm = Evm::builder()
             .with_db(&mut state.0)
             .with_block_env(block_env)
             .with_tx_env(tx_env)
             .modify_cfg_env(|cfg| {
-                if let Some(chain_id) = chain_id{
+                if let Some(chain_id) = chain_id {
                     cfg.chain_id = chain_id
                 }
             })
@@ -196,7 +196,7 @@ fn estimate_gas(
 /// Runs the transaction and returns the result, but does not commit it.
 fn run_without_commit(tx_env: &TxEnv, mut block_env: BlockEnv, state: &mut EvmState, spec_id: SpecId) -> Result<ExecutionResult, EvmError> {
     adjust_disabled_base_fee(&mut block_env, tx_env.gas_price, tx_env.max_fee_per_blob_gas);
-    let chain_id = state.database().get_chain_id()?.map(|ci| ci.low_u64());
+    let chain_id = state.database().get_chain_id()?;
     let mut evm = Evm::builder().with_db(&mut state.0).with_block_env(block_env).with_tx_env(tx_env).with_spec_id(spec_id).modify_cfg_env(|env| {
         env.disable_base_fee = true;
         env.disable_block_gas_limit = true;

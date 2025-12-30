@@ -1,12 +1,12 @@
 use std::{
     net::SocketAddr, time::{Duration, SystemTime, UNIX_EPOCH}
 };
-use discv4::{Endpoint, Message, PingMessage, FindNodeMessage, PongMessage, Packet};
+use discv4::{Message, PingMessage, FindNodeMessage, PongMessage, Packet};
 use bootnode::BootNode;
 use reec_core::{H256, H512};
 use k256::{
     ecdsa::{RecoveryId, Signature, SigningKey, VerifyingKey}, 
-    elliptic_curve::{rand_core::OsRng, sec1::ToEncodedPoint, PublicKey},
+    elliptic_curve::{sec1::ToEncodedPoint, PublicKey},
     SecretKey,
 };
 use kademlia::{KademliaTable, PeerData};
@@ -18,17 +18,19 @@ use tokio::{
     try_join,
 };
 use tracing::{info, warn};
+use types::Endpoint;
+
 pub mod bootnode;
 pub(crate) mod discv4;
 pub(crate) mod kademlia;
 pub mod rlpx;
+pub mod types;
 
 const MAX_DISC_PACKET_SIZE: usize = 1280;
 
-pub async fn start_network(udp_addr: SocketAddr, tcp_addr: SocketAddr, bootnodes: Vec<BootNode>) {
+pub async fn start_network(udp_addr: SocketAddr, tcp_addr: SocketAddr, bootnodes: Vec<BootNode>, signer:SigningKey) {
     info!("Starting discovery service at {}", udp_addr);
     info!("Listening for requests at {}", tcp_addr);
-    let signer = SigningKey::random(&mut OsRng);
 
     let discovery_handle = tokio::spawn(discover_peers(udp_addr, signer.clone(), bootnodes));
     let server_handle = tokio::spawn(serve_requests(tcp_addr, signer));
@@ -37,10 +39,7 @@ pub async fn start_network(udp_addr: SocketAddr, tcp_addr: SocketAddr, bootnodes
 
 async fn discover_peers(udp_addr: SocketAddr, signer:SigningKey, bootnodes: Vec<BootNode>) {
     let udp_socket = UdpSocket::bind(udp_addr).await.unwrap();
-    // let signer = SigningKey::random(&mut OsRng);
-    let public_key = PublicKey::from(signer.verifying_key());
-    let encoded = public_key.to_encoded_point(false);
-    let local_node_id = H512::from_slice(&encoded.as_bytes()[1..]);
+    let local_node_id = node_id_from_signing_key(&signer);
     let bootnode = match bootnodes.first() {
         Some(b) => b,
         None => {
@@ -206,4 +205,10 @@ async fn serve_requests(tcp_addr: SocketAddr, signer:SigningKey) {
     info!("Completed Hello roundtrip!");
 
     // TODO: messages after the Hello muts be snappy compressed
+}
+
+pub fn node_id_from_signing_key(signer: &SigningKey) -> H512 {
+    let public_key = PublicKey::from(signer.verifying_key());
+    let encoded = public_key.to_encoded_point(false);
+    H512::from_slice(&encoded.as_bytes()[1..])
 }

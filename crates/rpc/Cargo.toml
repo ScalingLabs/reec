@@ -15,6 +15,7 @@ reec-core.workspace = true
 reec-storage.workspace = true
 reec-evm.workspace = true
 reec-chain.workspace = true
+reec-net.workspace = true
 hex.workspace = true
 axum-extra = { version = "0.9.3", features = ["typed-header"]}
 jsonwebtoken = "9.3.0"

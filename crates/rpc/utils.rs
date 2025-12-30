@@ -3,6 +3,8 @@ use reec_storage::error::StoreError;
 use serde::{Serialize, Deserialize};
 use serde_json::Value;
 
+use crate::authentication::AuthenticationError;
+
 #[derive(Debug)]
 pub enum RpcErr {
     MethodNotFound,
@@ -11,6 +13,7 @@ pub enum RpcErr {
     Internal,
     Vm,
     Revert { data: String },
+    AuthenticationError(AuthenticationError),
 }
 
 impl From<RpcErr> for RpcErrorMetadata {
@@ -47,9 +50,32 @@ impl From<RpcErr> for RpcErrorMetadata {
                 code: 3,
                 data: Some(data.clone()), 
                 message: format!("execution reverted: {}", get_message_from_revert_data(&data)),
-            }
+            },
+            RpcErr::AuthenticationError(auth_error) => match auth_error {
+                AuthenticationError::InvalidIssuedAtClaim => RpcErrorMetadata {
+                    code: -32000,
+                    data: None,
+                    message: "Auth failed: Invalid iat claim".to_string(),
+                },
+                AuthenticationError::TokenDecodingError => RpcErrorMetadata {
+                    code: -32000,
+                    data: None,
+                    message: "Auth failed: Invalid or missing token".to_string(),
+                },
+                AuthenticationError::MissingAuthentication => RpcErrorMetadata {
+                    code: -32000,
+                    data: None,
+                    message: "Auth failed: Missing authentication header".to_string(),
+                },
+            },
         }
     }
+}
+
+pub enum RpcNamespace {
+    Engine,
+    Eth,
+    Admin,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -66,6 +92,22 @@ pub struct RpcRequest {
     pub method: String,
     pub jsonrpc: String,
     pub params: Option<Vec<Value>>,
+}
+
+impl RpcRequest {
+    pub fn namespace(&self) -> Result<RpcNamespace, RpcErr> {
+        let mut parts = self.method.split('_');
+        if let Some(namespace) = parts.next() {
+            match namespace {
+                "engine" => Ok(RpcNamespace::Engine),
+                "eth" => Ok(RpcNamespace::Eth),
+                "admin" => Ok(RpcNamespace::Admin),
+                _ => Err(RpcErr::MethodNotFound),
+            }
+        } else {
+            Err(RpcErr::MethodNotFound)
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
