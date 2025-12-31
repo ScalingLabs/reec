@@ -78,7 +78,7 @@ pub fn new_payload_v3(request: NewPayloadV3Request, storage: Store) -> Result<Pa
 
     // Execute and store the block
     info!("Executing payload with block hash: {block_hash}");
-    match add_block(&block, storage.clone()) {
+    match add_block(&block, &storage) {
         Err(ChainError::NonCanonicalBlock) => Ok(PayloadStatus::syncing()),
         Err(ChainError::ParentNotFound) => Ok(PayloadStatus::invalid_with_err(
             "Could not reference parent block with parent_hash",
@@ -94,6 +94,3 @@ pub fn new_payload_v3(request: NewPayloadV3Request, storage: Store) -> Result<Pa
         }
     }
 }
-
-
-

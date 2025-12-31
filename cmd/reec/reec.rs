@@ -46,7 +46,6 @@ async fn main() {
     let udp_socket_addr = parse_socket_addr(udp_addr, udp_port).expect("Failed to parse discovery address and port");
     let tcp_socket_addr = parse_socket_addr(tcp_addr, tcp_port).expect("Failed to parse addr and port");
 
-    // let _genesis = read_genesis_file(genesis_file_path);
     let mut store = match matches.get_one::<String>("datadir") {
         Some(data_dir) 
             if !data_dir.is_empty() => Store::new(data_dir, EngineType::Libmdbx),
@@ -59,7 +58,7 @@ async fn main() {
         let blocks = read_chain_file(chain_rlp_path);
         let size = blocks.len();
         for block in blocks {
-            let _ = add_block(&block, store.clone());
+            let _ = add_block(&block, &store);
         }
         info!("Added {} blocks to blockhash", size);
     }

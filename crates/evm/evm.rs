@@ -5,7 +5,7 @@ use std::cmp::min;
 use db::StoreWrapper;
 use reec_core::{
     Address, BigEndianHash, H256, U256, 
-    types::{AccountInfo, Block, BlockHeader, GenericTransaction, Transaction, TxKind, Withdrawal, GWEI_TO_WEI,},
+    types::{AccountInfo, Block, BlockHeader, GenericTransaction, Receipt, Transaction, TxKind, Withdrawal, GWEI_TO_WEI,},
 };
 use reec_storage::{error::StoreError, Store};
 use lazy_static::lazy_static;
@@ -16,13 +16,13 @@ use revm::{
 use revm_inspectors::access_list::AccessListInspector;
 
 // Rename imported types for clarity
-use revm::primitives::{Address as RevmAddress, TxKind as RevmTxKind};
-use revm_primitives::{ruint::Uint, AccessList as RevmAccessList, AccessListItem as RevmAccessListItem};
+// use revm::primitives::{Address as RevmAddress, TxKind as RevmTxKind};
+use revm_primitives::{ruint::Uint, AccessList as RevmAccessList, AccessListItem as RevmAccessListItem, TxKind as RevmTxKind, };
 
 // Export needed types
 pub use errors::EvmError;
 pub use execution_result::*;
-pub use revm::primitives::SpecId;
+pub use revm::primitives::{Address as RevmAddress, SpecId};
 
 type AccessList = Vec<(Address, Vec<H256>)>;
 
@@ -38,22 +38,27 @@ impl EvmState {
 }
 
 /// Executes all transactions in a block and performs the state transition on the database and stores the block in the DB
-pub fn execute_block(block: &Block, state: &mut EvmState) -> Result<(), EvmError> {
+pub fn execute_block(block: &Block, state: &mut EvmState) -> Result<Vec<Receipt>, EvmError> {
     let block_header = &block.header;
     let spec_id = spec_id(state.database(), block_header.timestamp)?;
     // eip 4788: execute beacon_root_contract_call before block transactions
     if block_header.parent_beacon_block_root.is_some() && spec_id == SpecId::CANCUN {
         beacon_root_contract_call(state, block_header, spec_id)?;
     }
+    let mut receipts = Vec::new();
+    let mut cummulative_gas_used = 0;
     for transaction in block.body.transactions.iter() {
-        execute_tx(transaction, block_header, state, spec_id)?;
+        let result = execute_tx(transaction, block_header, state, spec_id)?;
+        cummulative_gas_used += result.gas_used();
+        let receipt = Receipt::new(transaction.tx_type(), result.is_success(), cumulative_gas_used, result.logs());
+        receipts.push(receipt);
     }
 
     if let Some(withdrawals) = &block.body.withdrawals {
         process_withdrawals(state, withdrawals)?;
     }
     
-    Ok(())
+    Ok(receipts)
 }
 
 // Executes a single tx, doesn't perform state transitions

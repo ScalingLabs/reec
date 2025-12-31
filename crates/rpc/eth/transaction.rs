@@ -1,8 +1,9 @@
 use super::block::BlockIdentifier;
 use reec_core::{
-    types::{AccessListEntry, BlockHash, GenericTransaction, ReceiptWithTxAndBlockInfo},
+    types::{AccessListEntry, BlockHash, GenericTransaction},
     Bytes, H256
 };
+use crate::{eth::block, types::transaction::RpcTransaction, utils::RpcErr};
 use reec_evm::{evm_state, ExecutionResult, SpecId};
 use reec_storage::Store;
 use serde::Serialize;
@@ -144,7 +145,7 @@ pub fn call(request: &CallRequest, storage: Store) -> Result<Value, RpcErr> {
     };
     // Run transaction
     let data = match reec_evm::simulate_tx_from_generic(&request.transaction, &header, &mut evm_state, SpecId::CANCUN)? {
-        ExecutionResult::Success { reason: _, gas_used: _, gas_refunded: _, output } => match output {
+        ExecutionResult::Success { reason: _, gas_used: _, gas_refunded: _, logs: _, output } => match output {
             reec_evm::Output::Call(bytes) => bytes,
             reec_evm::Output::Create(bytes, _) => bytes,
         }
@@ -265,26 +266,8 @@ pub fn get_transaction_receipt(
         Some(block_body) => block_body,
         _ => return Ok(Value::Null),
     };
-    let receipt = match storage.get_receipt(block_number, index)? {
-        Some(receipt) => receipt,
-        _ => return Ok(Value::Null),
-    };
-    let tx = match index
-        .try_into()
-        .ok()
-        .and_then(|index: usize| block_body.transactions.get(index))
-    {
-        Some(tx) => tx,
-        _ => return Ok(Value::Null),
-    };
-    let block_info = block_header.receipt_info();
-    let tx_info = tx.receipt_info(index);
-    let receipt = ReceiptWithTxAndBlockInfo {
-        receipt,
-        tx_info,
-        block_info,
-    };
-    serde_json::to_value(&receipt).map_err(|_| RpcErr::Internal)
+    let receipts = block::get_all_block_receipts(block_number, block_header, block_body, &storage)?;
+    serde_json::to_value(&receipt.get(index as usize)).map_err(|_| RpcErr::Internal)
 }
 
 pub fn create_access_list(
@@ -314,6 +297,7 @@ pub fn create_access_list(
                 reason: _,
                 gas_used,
                 gas_refunded: _,
+                logs: _,
                 output: _,
             },
             access_list,

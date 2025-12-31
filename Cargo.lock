@@ -2303,6 +2303,7 @@ dependencies = [
  "axum-extra",
  "bytes",
  "hex",
+ "hex-literal",
  "jsonwebtoken",
  "reec-chain",
  "reec-core",

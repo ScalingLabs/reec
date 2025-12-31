@@ -2,7 +2,7 @@ pub mod constants;
 pub mod error;
 use constants::{GAS_PER_BLOB, MAX_BLOB_GAS_PER_BLOCK, MAX_BLOB_NUMBER_PER_BLOCK};
 use error::{ChainError, InvalidBlockError};
-use reec_core::types::{validate_block_header, validate_cancun_header_fields, validate_no_cancun_header_fields, Block, BlockHeader, EIP4844Transaction, Transaction};
+use reec_core::types::{validate_block_header, validate_cancun_header_fields, validate_no_cancun_header_fields, Block, BlockHeader, BlockNumber, EIP4844Transaction, Receipt, Transaction};
 use reec_core::H256;
 use reec_evm::{EvmState, SpecId, apply_state_transitions, evm_state, execute_block, get_total_blob_gas, spec_id};
 use reec_storage::error::StoreError;
@@ -13,19 +13,21 @@ use reec_storage::Store;
 /// Right now we can only handle blocks that extend the canonical chain
 /// This is: - The parent_hash field on the block is the hash of the head of the canonical chain.
 /// - The block's number is the latest block number of the canonical chain+1;
-pub fn add_block(block: &Block, storage: Store) -> Result<(), ChainError> {
-    extends_canonical_chain(block, &storage)?;
+pub fn add_block(block: &Block, storage: &Store) -> Result<(), ChainError> {
+    extends_canonical_chain(block, storage)?;
     // Validate if it can be the new head and find the parent
-    let parent_header = find_parent_header(block, &storage)?;
+    let parent_header = find_parent_header(&block.header, storage)?;
     let mut state = evm_state(storage.clone());
     // Validate the block pre-execution
     validate_block(block, &parent_header, &state)?;
-    execute_block(block, &mut state)?;
+    let receipts = execute_block(block, &mut state)?;
+    validate_gas_used(&receipts, &block.header)?;
     apply_state_transitions(&mut state)?;
 
     // Check state root matches the one in block header after execution
-    validate_state_root(&block.header, &storage)?;
+    validate_state_root(&block.header, storage)?;
     store_block(storage, block.clone())?;
+    store_receipts(storage, receipts, block.header.number)?;
 
     Ok(())
 }
@@ -39,8 +41,15 @@ pub fn extends_canonical_chain(block: &Block, storage: Store) -> Result<(), Chai
     }
 }
 /// Stores block and header in the database
-pub fn store_block(storage: Store, block: &Block) -> Result<(), ChainError> {
+pub fn store_block(storage: &Store, block: Block) -> Result<(), ChainError> {
     storage.add_block(block)?;
+    Ok(())
+}
+
+pub fn store_receipts(storage: &Store, receipts: Vec<Receipt>, block_number: BlockNumber) -> Result<(), ChainError> {
+    for (index, receipt) in receipts.into_iter().enumerate() {
+        storage.add_receipt(block_number, index as u64, receipt)?;
+    }
     Ok(())
 }
 
@@ -65,8 +74,8 @@ pub fn latest_valid_hash(storage: Store) -> Result<H256, ChainError> {
 }
 
 /// Validates if the provided block could be the new head of the chain, and returns the parent_header in that case
-fn find_parent_header(block: &Block, storage: Store) -> Result<BlockHeader, ChainError> {
-    let parent_hash = block.header.parent_hash;
+fn find_parent_header(block_header: &BlockHeader, storage: &Store) -> Result<BlockHeader, ChainError> {
+    let parent_hash = block_header.parent_hash;
     let parent_number = storage.get_block_number(parent_hash)?;
 
     if let Some(parent_number) = parent_number {
@@ -101,6 +110,15 @@ pub fn validate_block(block: &Block, parent_header: &BlockHeader, state: &EvmSta
 
     if spec = SpecId::CANCUN {
         verify_blob_gas_usage(block)?
+    }
+    Ok(())
+}
+
+fn validate_gas_used(receipts: &[Receipt], block_header: &BlockHeader) -> Result<(), ChainError> {
+    if let Some(last) = receipts.last() {
+        if last.cummulative_gas_used != block_header.gas_used {
+            return  Err(ChainError::InvalidBlock(InvalidBlockError::GasUsedMismatch));
+        }
     }
     Ok(())
 }
