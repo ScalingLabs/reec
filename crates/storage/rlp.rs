@@ -7,7 +7,6 @@ use reec_core::{
     types::{AccountInfo, BlockBody, BlockHash, BlockHeader, Receipt},
     Address, H256
 };
-use ethereum_types::U256;
 
 #[cfg(feature = "libmdbx")]
 use libmdbx::orm::{Decodable, Encodable};
@@ -27,7 +26,6 @@ pub type BlockBodyRLP = Rlp<BlockBody>;
 
 // Receipts types
 pub type ReceiptRLP = Rlp<Receipt>;
-pub type BlockTotalDifficultyRLP = Rlp<U256>;
 
 // Transaction Types
 pub type TransactionHashRLP = Rlp<H256>;

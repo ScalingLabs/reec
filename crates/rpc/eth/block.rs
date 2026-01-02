@@ -12,11 +12,8 @@ use crate::{
     utils::RpcErr,
     RpcHandler,
 };
-use reec_core::{
-    H256, U256, 
-    types::{calculate_base_fee_per_blob_gas, BlockBody, BlockHash, BlockHeader, BlockNumber},
-    U256,
-};
+use reec_core::types::{calculate_base_fee_per_blob_gas, BlockBody, BlockHash, BlockHeader, BlockNumber};
+
 use reec_storage::{error::StoreError, Store};
 use super::account::BlockIdentifierOrHash;
 
@@ -98,8 +95,7 @@ impl RpcHandler for GetBlockByNumberRequest {
             _ => return Ok(Value::Null),
         };
         let hash = header.compute_block_hash();
-        let total_difficulty = storage.get_block_total_difficulty(hash)?;
-        let block = RpcBlock::build(header, body, hash, self.hydrated, total_difficulty.unwrap_or(U256::zero()));
+        let block = RpcBlock::build(header, body, hash, self.hydrated);
         serde_json::to_value(&block).map_err(|_| RpcErr::Internal)
     }
 }
@@ -130,8 +126,7 @@ impl RpcHandler for GetBlockByHashRequest {
             _ => return Ok(Value::Null),
         };
         let hash = header.compute_block_hash();
-        let total_difficulty = storage.get_block_total_difficulty(hash)?;
-        let block = RpcBlock::build(header, body, hash, self.hydrated, total_difficulty.unwrap_or(U256::zero()));
+        let block = RpcBlock::build(header, body, hash, self.hydrated);
         serde_json::to_value(&block).map_err(|_| RpcErr::Internal)
     }
 }
