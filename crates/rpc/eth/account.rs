@@ -3,7 +3,7 @@ use serde_json::Value;
 use std::fmt::Display;
 use tracing::info;
 
-use crate::{utils::RpcErr, RpcHandler};
+use crate::{eth::block::BlockTag, utils::RpcErr, RpcHandler};
 use reec_core::{types::BlockNumber, Address, BigEndianHash, H256};
 
 use super::block::BlockIdentifier;
@@ -17,6 +17,15 @@ pub enum BlockIdentifierOrHash {
     Identifier(BlockIdentifier),
 }
 
+impl PartialEq<BlockTag> for BlockIdentifierOrHash {
+    fn eq(&self, other: &BlockTag) -> bool {
+        match self {
+            BlockIdentifierOrHash::Identifier(BlockIdentifier::Tag(tag)) => tag == other,
+            _ => false,
+        }
+    }
+}
+
 impl BlockIdentifierOrHash {
     #[allow(unused)]
     pub fn resolve_block_number(&self, storage: &Store) -> Result<Option<BlockNumber>, StoreError> {
@@ -24,6 +33,18 @@ impl BlockIdentifierOrHash {
             BlockIdentifierOrHash::Identifier(id) => id.resolve_block_number(storage),
             BlockIdentifierOrHash::Hash(block_hash) => storage.get_block_number(*block_hash),
         }
+    }
+}
+
+pub fn is_latest(&self, storage: &Store) -> Result<bool, StoreError> {
+    if self == &BlockTag::Latest {
+        return Ok(true);
+    }
+    let latest = self.resolve_block_number(storage)?;
+    let latest = storage.get_latest_block_number()?;
+    match (result, latest) {
+        (Some(result), Some(latest)) => Ok(result == latest),
+        _ => Ok(false),
     }
 }
 
@@ -57,6 +78,10 @@ impl RpcHandler for GetBalanceRequest {
 
     fn handle(&self, storage: Store) -> Result<Value, RpcErr> {
         info!("Requested balance of account {} at block {}", self.address, self.block);
+        let is_latest = self.block.is_latest(&storage)?;
+        if !is_latest {
+            return Err(RpcErr::Internal);
+        }
         let account = storage.get_account_info(self.address)?;
         let balance = account.map(|acc| acc.balance).unwrap_or_default();
         serde_json::to_value(format!("{:#x}", balance)).map_err(|_| RpcErr::Internal)
@@ -77,6 +102,10 @@ impl RpcHandler for GetCodeRequest {
 
     fn handle(&self, storage: Store) -> Result<Value, RpcErr> {
         info!("Requested code of accout {} at block {}", self.address, self.block);
+        let is_latest = self.block.is_latest(&storage)?;
+        if !is_latest {
+            return Err(RpcErr::Internal);
+        }
         let code = storage.get_code_by_account_address(self.address)?.unwrap_or_default();
         serde_json::to_value(format!("0x{:x}", code)).map_err(|_| RpcErr::Internal)
     }
@@ -97,6 +126,10 @@ impl RpcHandler for GetStorageAtRequest {
     
     fn handle(&self, storage: Store) -> Result<Value, RpcErr> {
         info!("Requested storage slot {} of account {} at block {}", self.storage_slot, self.address, self.block);
+        let is_latest = self.block.is_latest(&storage)?;
+        if !is_latest {
+            return Err(RpcErr::Internal);
+        }
         let storage_value = storage.get_storage_at(self.address, self.storage_slot)?.unwrap_or_default();
         let storage_value = H256::from_uint(&storage_value);
         serde_json::to_value(format!("{:#x}", storage_value)).map_err(|_| RpcErr::Internal)

@@ -43,7 +43,7 @@ pub enum BlockIdentifier {
     Tag(BlockTag),
 }
 
-#[derive(Deserialize, Default, Clone, Debug)]
+#[derive(Deserialize, Default, Clone, Debug, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub enum BlockTag {
     Earliest,
