@@ -11,6 +11,7 @@ use k256::{
 };
 use kademlia::{KademliaTable, PeerData};
 use rlpx::handshake::RLPxLocalClient;
+use rlpx::{connection::SUPPORTED_CAPABILITIES, p2p::Message as RLPxMessage};
 use sha3::{Digest, Keccak256};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
@@ -142,8 +143,8 @@ async fn serve_requests(tcp_addr: SocketAddr, signer:SigningKey) {
     // Try contacting a known peer
     // TODO: this is just an example, and we should do this dynamically
 
-    let str_tcp_addr = "127.0.0.1:54139";
-    let str_udp_addr = "127.0.0.1:50073";
+    let str_tcp_addr = "127.0.0.1:30307";
+    let str_udp_addr = "127.0.0.1:30307";
 
     let udp_addr: SocketAddr = str_udp_addr.parse().unwrap();
 
@@ -152,9 +153,9 @@ async fn serve_requests(tcp_addr: SocketAddr, signer:SigningKey) {
     let (msg, sig_bytes, endpoint) = loop {
         ping(&udp_socket, tcp_addr, udp_addr, &signer).await;
         let (read, from) = udp_socket.recv_from(&mut buf).await.unwrap();
-        info!("Received {read} bytes from {from}");
+        info!("RLPx: Received {read} bytes from {from}");
         let packet = Packet::decode(&buf[..read]).unwrap();
-        info!("Message: {:?}", packet);
+        info!("RLPx: Message: {:?}", packet);
 
         match packet.get_message() {
             Message::Pong(pong) => {
@@ -198,13 +199,14 @@ async fn serve_requests(tcp_addr: SocketAddr, signer:SigningKey) {
     let mut pending_conn = client.decode_ack_message(&secret_key, msg, auth_data);
     info!("Completed handshake");
 
-    pending_conn.send_hello(&PublicKey::from(signer.verifying_key()), &mut stream).await;
+    let hello_msg = RLPxMessage::Hello(SUPPORTED_CAPABILITIES.to_vec(), PublicKey::from(signer.verifying_key()));
+    pending_con.send(hello_msg, &mut stream).await;
 
-    let _conn = pending_conn.receive_hello(&mut stream).await;
+    let mut conn = pending_conn.receive_hello(&mut stream).await;
 
     info!("Completed Hello roundtrip!");
 
-    // TODO: messages after the Hello muts be snappy compressed
+    conn.send(RLPxMessage::Ping(), &mut stream).await;
 }
 
 pub fn node_id_from_signing_key(signer: &SigningKey) -> H512 {
