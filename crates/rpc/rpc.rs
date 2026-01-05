@@ -14,6 +14,7 @@ use reec_net::types::Node;
 
 use reec_storage::Store;
 use engine::{
+    exchange_transition_config::ExchangeTransitionConfigV1Reg,
     fork_choice::{self, ForkChoiceUpdatedV3},
     payload::{self, NewPayloadV3Request},
     ExchangeCapabilitiesRequest
@@ -166,6 +167,9 @@ pub fn map_engine_requests(req: &RpcRequest, storage: Store) -> Result<Value, Rp
         "engine_newPayloadV3" => {
             let request = NewPayloadV3Request::parse(&req.params).ok_or(RpcErr::BadParams)?;
             serde_json::to_value(paylod::new_payload_v3(request, storage)?).map_err(|_| RpcErr::Internal)
+        }
+        "engine_exchangeTransitionConfigurationV1" => {
+            ExchangeTransitionConfigV1Reg::call(req, storage)
         }
         _ => Err(RpcErr::MethodNotFound)
     }
