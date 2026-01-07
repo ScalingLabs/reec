@@ -20,7 +20,7 @@ secp256k1 = { version = "0.29", default-features = false, features = [
  ] }
 
 [dev-dependencies]
-hex-literal = "0.4.1"
+hex-literal.workspace = true
 
 [lib]
 path = "./core.rs"

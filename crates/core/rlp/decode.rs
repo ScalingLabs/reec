@@ -80,6 +80,14 @@ use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
         Ok((u64::from_be_bytes(padded_bytes), rest))
      }
  }
+
+ impl RLPDecode for usize {
+    fn decode_unfinished(rlp: &[u8]) -> Result<(Self, &[u8]), RLPDecodeError> {
+        let (bytes, rest) = decode_bytes(rlp)?;
+        let padded_bytes = static_left_pad(bytes)?;
+        Ok((usize::from_be_bytes(padded_bytes), rest))
+    }
+ }
  
  impl RLPDecode for u128 {
      fn decode_unfinished(rlp: &[u8]) -> Result<(Self, &[u8]), RLPDecodeError> {

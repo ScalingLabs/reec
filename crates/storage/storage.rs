@@ -19,6 +19,8 @@ use tracing::info;
 mod engines;
 pub mod error;
 mod rlp;
+#[allow(unused)]
+mod trie;
 
 #[derive(Debug, Clone)]
 pub struct Store {
