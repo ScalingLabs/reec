@@ -1,21 +1,36 @@
 mod db;
-mod hashing;
+// mod hashing;
 mod nibble;
 mod node;
+mod node_hash;
 mod node_ref;
 mod rlp;
+mod state;
+
 #[cfg(test)]
 mod test_utils;
 
 use reec_core::rlp::constants::RLP_NULL;
 use ethereum_types::H256;
+use node::Node;
+use node_hash::NodeHash;
 use sha3::{Digest, Keccak256};
 
 use self::{
-    db::TrieDB, hashing::NodeHashRef,
+    db::TrieDB, 
+    // hashing::NodeHashRef,
     nibble::NibbleSlice, node::LeafNode, node_ref::NodeRef,
 };
 use crate::error::StoreError;
+
+use lazy_static::lazy_static;
+
+lazy_static! {
+    // Hash value for an empty trie, equal to keccak(RLP_NULL)
+    static ref EMPTY_TRIE_HASH: H256 = H256::from_slice(
+        Keccak256::new().chain_update([RLP_NULL]).finalize().as_slice(),
+    );
+}
 
 /// RLP-encoded trie path
 pub type PathRLP = Vec<u8>;
@@ -23,45 +38,52 @@ pub type PathRLP = Vec<u8>;
 pub type ValueRLP = Vec<u8>;
 
 /// Libmdbx-based Ethereum Compatible Merkle Patricica Trie
-pub struct Trie {
-    /// Reference to the current root node
-    root_ref: NodeRef,
-    /// Contains the trie's nodes & old root hashes
-    pub(crate) db: TrieDB,
-    /// Contains the root hash if the current root node has been hashed
-    hash: Option<H256>,
+pub struct Trie<DB: TrieDB> {
+    /// Hash of the current node
+    root: Option<NodeHash>,
+    /// Contains the trie's nodes
+    pub(crate) state: TrieState<DB>,
 }
 
 impl Trie {
-    /// Creates a new Trie based on either a previous execution's DB (if `trie_dir` contains a DB) or a clean DB
-    pub fn new(trie_dir: &str) -> Result<Self, StoreError> {
-        let (db, root_ref) = TrieDB::init(trie_dir)?;
-        Ok(Self { 
-            root_ref: root_ref.unwrap_or_default(), 
-            db, 
-            hash: None, 
-        })
+    /// Creates a new Trie from a clean DB
+    pub fn new(db: DB) -> Self {
+        Self { 
+            state: TrieState::new(db), 
+            root: None,
+        }
+    }
+
+    /// Creattes a trie from an already-initialized DB and sets root as the root node of the trie
+    pub fn open(db: DB, root: H256) -> Self {
+        let root = (root != *EMPTY_TRIE_HASH).then_some(root.into());
+        Self { 
+            state: TrieState::new(db),
+            root,  
+        }
     }
 
     /// Retrive an RLP-encoded value from the trie given its RLP-encoded path.
     pub fn get(&self, path: &PathRLP) -> Result<Option<ValueRLP>, StoreError> {
-        if !self.root_ref.is_valid() {
-            return Ok(None);
+        if let Some(root) = &self.root {
+            let root_node = self.state.get_node(root.clone())?.expect("Inconsistent internal tree structure");
+            root_node.get(&self.state, NibbleSlice::new(path))
+        } else {
+            Ok(None)
         }
-        let root_node = self.db.get_node(self.root_ref)?.expect("Inconsistent internal tree structure");
-        root_node.get(&self.db, NibbleSlice::new(path))
     }
 
     /// Insert an RLP-encoded value into the trie.
     pub fn insert(&mut self, path: PathRLP, value: ValueRLP) -> Result<(), StoreError> {
-        self.hash = None;
-        if let Some(root_node) = self.db.get_node(self.root_ref)?{
+        let root = self.root.take();
+        if let Some(root_node) = root.map(|root| self.state.get_node(root)).transpose()?.flatten() {
             // If the trie is not empty, call the root node's insertion logic
-            let root_node = root_node.insert(&mut self.db, NibbleSlice::new(&path), value.clone())?;
-            self.root_ref = self.db.insert_node(root_node)?;
+            let root_node = root_node.insert(&mut self.state, NibbleSlice::new(&path), value.clone())?;
+            self.root = Some(root_node.insert_self(0, &mut self.state)?)
         } else {
             // If the trie is empty, just add a leaf.
-            self.root_ref = self.db.insert_node(LeafNode::new(path, value).into())?;
+            let new_leaf = Node::from(LeafNode::new(path.clone(), value));
+            self.root = Some(new_leaf.insert_self(0, &mut self.state)?)
         }
         Ok(())
     }
@@ -69,85 +91,56 @@ impl Trie {
     /// Remove a value from the trie given its RLP-encoded path.
     /// Returns the value if it was successfully removed or None if it wasn't part of the trie
     pub fn remove(&mut self, path: PathRLP) -> Result<Option<ValueRLP>, StoreError> {
-        if !self.root_ref.is_valid() {
-            return Ok(None);
+        let root = self.root.take();
+        if let Some(root) = root {
+            let root_node = self.state.get_node(root)?.expect("inconsistent internal tree structure");
+            let (root_node, old_value) = root_node.remove(&mut self.state, NibbleSlice::new(&path))?;
+            self.root = root_node.map(|root| root.insert_self(0, &mut self.state)).transpose()?;
+            Ok(old_value)
+        } else {
+            Ok(None)
         }
-        self.hash = None;
-
-        let root_node = self.db.get_node(self.root_ref)?.expect("Inconsistent internal tree structure");
-        let (root_node, old_value) = root_node.remove(&mut self.db, NibbleSlice::new(&path))?;
-        self.root_ref = match root_node {
-            Some(root_node) => self.db.insert_node(root_node)?,
-            None => Default::default(),
-        };
-        Ok(old_value)
     }   
 
-    /// Return the hash of the trie's root node (or recompute if needed).
+    /// Return the hash of the trie's root node.
     /// Returns keccak(RLP_NULL) if the trie is empty
-    pub fn compute_hash(&mut self) -> Result<H256, StoreError> {
-        if let Some(hash) = self.hash {
-            return Ok(hash);
+    /// Also commits changes to the DB
+    pub fn hash(&mut self) -> Result<H256, StoreError> {
+        if let Some(ref root) = self.root {
+            self.state.commit(root)?;
         }
-        let root_hash = if self.root_ref.is_valid() {
-            let root_node = self.db.get_node(self.root_ref)?.expect("Inconsistent internal tree structures");
-            let hash = H256::from_slice(match root_node.compute_hash(&self.db, 0)? {
-                NodeHashRef::Inline(x) => Keccak256::new().chain_update(&*x).finalize(),
-                NodeHashRef::Hashed(x) => *x,}.as_slice(),
-            );
-            hash
-        } else {
-            H256::from_slice(Keccak256::new().chain_update([RLP_NULL]).finalize().as_slice(),)
-        };
-        self.db.insert_root_ref(root_hash, self.root_ref)?;
-        Ok(root_hash)
+        Ok(self.root.as_ref().map(|root| root.clone().finalize()).unwrap_or(*EMPTY_TRIE_HASH))
     }
 
     /// Retrieve a value from the trie given its path from the subtrie originating from the given root
     /// Please use a root_hash calculated using `compute_hash`
     /// This function is used to access historical data
     pub fn get_from_root(&self, root_hash: H256, path: &PathRLP) -> Result<Option<ValueRLP>, StoreError> {
-        let root_ref = self.db.get_root_ref(root_hash)?;
-        match root_ref {
-            Some(root_ref) if root_ref.is_valid() => {
-                let root_node = self.db.get_node(root_ref)?.expect("Inconsistent internal tree structure");
-                root_node.get(&self.db, NibbleSlice::new(path))
-            }
-            _ => Ok(None)
+        if let Some(root_node) = self.state.get_node(root_hash.into())? {
+            root_node.get(&self.state, NibbleSlice::new(path))
+        } else {
+            Ok(None)
         }
     }
 
     /// Sets the root of the trie to the one which's hash corresponds to the one received
-    /// Returns true if the root was updated successfully or false if the new root cannot be located
-    /// For this method to work properly, please use a root hsh that has been calculated using `compute_hash`
-    pub fn set_root(&mut self, root_hash: H256) -> Result<bool, StoreError> {
-        if let Some(root_ref) = self.db.get_root_ref(root_hash)? {
-            self.root_ref = root_ref;
-            self.hash = Some(root_hash);
-            Ok(true)
-        } else {
-            Ok(false)
-        }
-    }
-
-    #[cfg(test)]
-    /// Creates a new trie based on a temporary DB
-    pub fn new_temp() -> Self {
-        Self { 
-            root_ref: NodeRef::default(), 
-            db: TrieDB::init_temp(), 
-            hash: None,
-        }
+    /// Doesn't check that the root_hash is valid within the trie
+    /// Please use a root hash that has been calculated using `compute_hash`
+    pub fn set_root(&mut self, root_hash: H256) -> {
+        self.root = (root_hash != *EMPTY_TRIE_HASH).then_some(root_hash.into());
     }
 }
 
 #[cfg(test)]
 mod test {
     use std::sync::Arc;
+    use crate::trie::test_utils::new_temp_trie;
 
     use super::*;
     // Rename imports to avoid potential name clashes
+    use super::test_utils;
     use cita_trie::{MemoryDB as CitaMemoryDB, PatriciaTrie as CitaTrie, Trie as CitaTrieTrait};
+    use db::libmdbx::Libmdbx;
     use hasher::HasherKeccak;
     use hex_literal::hex;
     use proptest::{
@@ -159,7 +152,7 @@ mod test {
 
     #[test]
     fn compute_hash() {
-        let mut trie = Trie::new_temp();
+        let mut trie = new_temp_trie();
         trie.insert(b"first".to_vec(), b"value".to_vec()).unwrap();
         trie.insert(b"second".to_vec(), b"value".to_vec()).unwrap();
 
@@ -171,7 +164,7 @@ mod test {
 
     #[test]
     fn compute_hash_long() {
-        let mut trie = Trie::new_temp();
+        let mut trie = new_temp_trie();
         trie.insert(b"first".to_vec(), b"value".to_vec()).unwrap();
         trie.insert(b"second".to_vec(), b"value".to_vec()).unwrap();
         trie.insert(b"third".to_vec(), b"value".to_vec()).unwrap();
@@ -185,7 +178,7 @@ mod test {
 
     #[test]
     fn get_insert_words() {
-        let mut trie = Trie::new_temp();
+        let mut trie = new_temp_trie();
         let first_path = b"first".to_vec();
         let first_value = b"value_a".to_vec();
         let second_path = b"second".to_vec();
@@ -205,7 +198,7 @@ mod test {
 
     #[test]
     fn get_insert_zero() {
-        let mut trie = Trie::new_temp();
+        let mut trie = new_temp_trie();
         trie.insert(vec![0x0], b"value".to_vec()).unwrap();
         let first = trie.get(&[0x0][..].to_vec()).unwrap();
         assert_eq!(first, Some(b"value".to_vec()));
@@ -213,7 +206,7 @@ mod test {
 
     #[test]
     fn get_insert_a() {
-        let mut trie = Trie::new_temp();
+        let mut trie = new_temp_trie();
         trie.insert(vec![16], vec![0]).unwrap();
         trie.insert(vec![16, 0], vec![0]).unwrap();
 
@@ -226,7 +219,7 @@ mod test {
 
     #[test]
     fn get_insert_b() {
-        let mut trie = Trie::new_temp();
+        let mut trie = new_temp_trie();
         trie.insert(vec![0, 0], vec![0, 0]).unwrap();
         trie.insert(vec![1, 0], vec![1, 0]).unwrap();
 
@@ -239,7 +232,7 @@ mod test {
 
     #[test]
     fn get_insert_c() {
-        let mut trie = Trie::new_temp();
+        let mut trie = new_temp_trie();
         let vecs = vec![
             vec![26, 192, 44, 251],
             vec![195, 132, 220, 124, 112, 201, 70, 128, 235],
@@ -258,7 +251,7 @@ mod test {
 
     #[test]
     fn get_insert_d() {
-        let mut trie = Trie::new_temp();
+        let mut trie = new_temp_trie();
         let vecs = vec![
             vec![52, 53, 143, 52, 206, 112],
             vec![14, 183, 34, 39, 113],
@@ -281,7 +274,7 @@ mod test {
 
     #[test]
     fn get_insert_e() {
-        let mut trie = Trie::new_temp();
+        let mut trie = new_temp_trie();
         trie.insert(vec![0x00], vec![0x00]).unwrap();
         trie.insert(vec![0xC8], vec![0xC8]).unwrap();
         trie.insert(vec![0xC8, 0x00], vec![0xC8, 0x00]).unwrap();
@@ -293,7 +286,7 @@ mod test {
 
     #[test]
     fn get_insert_f() {
-        let mut trie = Trie::new_temp();
+        let mut trie = new_temp_trie();
         trie.insert(vec![0x00], vec![0x00]).unwrap();
         trie.insert(vec![0x01], vec![0x01]).unwrap();
         trie.insert(vec![0x10], vec![0x10]).unwrap();
@@ -311,7 +304,7 @@ mod test {
 
     #[test]
     fn get_insert_remove_a() {
-        let mut trie = Trie::new_temp();
+        let mut trie = new_temp_trie();
         trie.insert(b"do".to_vec(), b"verb".to_vec()).unwrap();
         trie.insert(b"horse".to_vec(), b"stallion".to_vec())
             .unwrap();
@@ -323,7 +316,7 @@ mod test {
 
     #[test]
     fn get_insert_remove_b() {
-        let mut trie = Trie::new_temp();
+        let mut trie = new_temp_trie();
         trie.insert(vec![185], vec![185]).unwrap();
         trie.insert(vec![185, 0], vec![185, 0]).unwrap();
         trie.insert(vec![185, 1], vec![185, 1]).unwrap();
@@ -335,7 +328,7 @@ mod test {
 
     #[test]
     fn compute_hash_a() {
-        let mut trie = Trie::new_temp();
+        let mut trie = new_temp_trie();
         trie.insert(b"do".to_vec(), b"verb".to_vec()).unwrap();
         trie.insert(b"horse".to_vec(), b"stallion".to_vec())
             .unwrap();
@@ -350,7 +343,7 @@ mod test {
 
     #[test]
     fn compute_hash_b() {
-        let mut trie = Trie::new_temp();
+        let mut trie = new_temp_trie();
         assert_eq!(
             trie.compute_hash().unwrap().0.as_slice(),
             hex!("56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421").as_slice(),
@@ -359,7 +352,7 @@ mod test {
 
     #[test]
     fn compute_hash_c() {
-        let mut trie = Trie::new_temp();
+        let mut trie = new_temp_trie();
         let data = [
             (
                 hex!("0000000000000000000000000000000000000000000000000000000000000045").to_vec(),
@@ -411,7 +404,7 @@ mod test {
 
     #[test]
     fn compute_hash_d() {
-        let mut trie = Trie::new_temp();
+        let mut trie = new_temp_trie();
 
         let data = [
             (
@@ -443,7 +436,7 @@ mod test {
 
     #[test]
     fn compute_hash_e() {
-        let mut trie = Trie::new_temp();
+        let mut trie = new_temp_trie();
         trie.insert(b"abc".to_vec(), b"123".to_vec()).unwrap();
         trie.insert(b"abcd".to_vec(), b"abcd".to_vec()).unwrap();
         trie.insert(b"abc".to_vec(), b"abc".to_vec()).unwrap();
@@ -456,7 +449,7 @@ mod test {
 
     #[test]
     fn get_old_state() {
-        let mut trie = Trie::new_temp();
+        let mut trie = new_temp_trie();
         trie.insert(vec![0x00], vec![0x00]).unwrap();
         trie.insert(vec![0x01], vec![0x01]).unwrap();
 
@@ -480,7 +473,7 @@ mod test {
 
     #[test]
     fn get_old_state_with_removals() {
-        let mut trie = Trie::new_temp();
+        let mut trie = new_temp_trie();
         trie.insert(vec![0x00], vec![0x00]).unwrap();
         trie.insert(vec![0x01], vec![0x01]).unwrap();
         trie.insert(vec![0x02], vec![0x02]).unwrap();
@@ -512,7 +505,7 @@ mod test {
 
     #[test]
     fn revert() {
-        let mut trie = Trie::new_temp();
+        let mut trie = new_temp_trie();
         trie.insert(vec![0x00], vec![0x00]).unwrap();
         trie.insert(vec![0x01], vec![0x01]).unwrap();
 
@@ -532,7 +525,7 @@ mod test {
 
     #[test]
     fn revert_with_removals() {
-        let mut trie = Trie::new_temp();
+        let mut trie = new_temp_trie();
         trie.insert(vec![0x00], vec![0x00]).unwrap();
         trie.insert(vec![0x01], vec![0x01]).unwrap();
         trie.insert(vec![0x02], vec![0x02]).unwrap();
@@ -560,7 +553,8 @@ mod test {
         let trie_dir = trie_dir.path().to_str().unwrap();
 
         // Create new trie from clean DB
-        let mut trie = Trie::new(trie_dir).unwrap();
+        let db = Libmdbx::create(trie_dir).unwrap();
+        let mut trie = Trie::new(db);
 
         trie.insert(vec![0x00], vec![0x01]).unwrap();
         trie.insert(vec![0x01], vec![0x02]).unwrap();
@@ -568,19 +562,21 @@ mod test {
 
         drop(trie); // Release DB
 
-        // Create a new trie based on the previous trie's DB
-        let trie = Trie::new(trie_dir).unwrap();
+        let mut db2 = Libmdbx::open(trie_dir).unwrap();
 
-        assert_eq!(trie.get(&vec![0x00]).unwrap(), Some(vec![0x01]));
-        assert_eq!(trie.get(&vec![0x01]).unwrap(), Some(vec![0x02]));
-        assert_eq!(trie.get(&vec![0x02]).unwrap(), Some(vec![0x04]));
+        // Create a new trie based on the previous trie's DB
+        let trie = Trie::open(db2, root);
+
+        assert_eq!(trie.get(&[0; 32].to_vec()).unwrap(), Some([1; 32].to_vec()));
+        assert_eq!(trie.get(&[1; 32].to_vec()).unwrap(), Some([2; 32].to_vec()));
+        assert_eq!(trie.get(&[2; 32].to_vec()).unwrap(), Some([4; 32].to_vec()));
     }
 
     // Proptests
     proptest! {
         #[test]
         fn proptest_get_insert(data in btree_set(vec(any::<u8>(), 1..100), 1..100)) {
-            let mut trie = Trie::new_temp();
+            let mut trie = new_temp_trie();
 
             for val in data.iter(){
                 trie.insert(val.clone(), val.clone()).unwrap();
@@ -595,7 +591,7 @@ mod test {
 
         #[test]
         fn proptest_get_insert_with_removals(mut data in vec((vec(any::<u8>(), 5..100), any::<bool>()), 1..100)) {
-            let mut trie = Trie::new_temp();
+            let mut trie = new_temp_trie();
             // Remove duplicate values with different expected status
             data.sort_by_key(|(val, _)| val.clone());
             data.dedup_by_key(|(val, _)| val.clone());
@@ -625,7 +621,7 @@ mod test {
         // The previous test needs to sort the input values in order to get rid of duplicate entries, leading to ordered insertions
         // This check has a fixed way of determining wether a value should be removed but doesn't require ordered insertions
         fn proptest_get_insert_with_removals_unsorted(data in btree_set(vec(any::<u8>(), 5..100), 1..100)) {
-            let mut trie = Trie::new_temp();
+            let mut trie = new_temp_trie();
             // Remove all values that have an odd first value
             let remove = |value: &Vec<u8>| -> bool {
                 value.first().is_some_and(|v| v % 2 != 0)
@@ -655,7 +651,7 @@ mod test {
 
         #[test]
         fn proptest_compare_hash(data in btree_set(vec(any::<u8>(), 1..100), 1..100)) {
-            let mut trie = Trie::new_temp();
+            let mut trie = new_temp_trie();
             let mut cita_trie = cita_trie();
 
             for val in data.iter(){
@@ -723,7 +719,7 @@ mod test {
 
         #[test]
         fn proptest_compare_hash_between_inserts(data in btree_set(vec(any::<u8>(), 1..100), 1..100)) {
-            let mut trie = Trie::new_temp();
+            let mut trie = new_temp_trie;
             let mut cita_trie = cita_trie();
 
             for val in data.iter(){

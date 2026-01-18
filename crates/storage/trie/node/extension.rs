@@ -1,10 +1,13 @@
 use crate::error::StoreError;
 use crate::trie::db::TrieDB;
 use crate::trie::nibble::NibbleSlice;
+use crate::trie::nibble::NibbleVec;
+use crate::trie::node_hash::{NodeHash, NodeHasher, PathKind};
+use crate::trie::state::TrieState;
 use crate::trie::ValueRLP;
-use crate::trie::{nibble::NibbleVec, node_ref::NodeRef};
+// use crate::trie::{nibble::NibbleVec, node_ref::NodeRef};
 
-use crate::trie::hashing::{NodeHash, NodeHashRef, NodeHasher, PathKind};
+// use crate::trie::hashing::{NodeHash, NodeHashRef, NodeHasher, PathKind};
 
 use super::{BranchNode, LeafNode, Node};
 
@@ -19,33 +22,32 @@ pub struct ExtensionNode {
 
 impl ExtensionNode {
     /// Creates a new extension node given its child reference and prefix
-    pub(crate) fn new(prefix: NibbleVec, child: NodeRef) -> Self {
+    pub(crate) fn new(prefix: NibbleVec, child: NodeHash) -> Self {
         Self {
             prefix,
             child,
-            hash: Default::default(),
         }
     }
 
     /// Retrieves a value from the subtrie originating from this node given its path
-    pub fn get(&self, db: &TrieDB, mut path: NibbleSlice) -> Result<Option<ValueRLP>, StoreError> {
+    pub fn get<DB: TrieDB>(&self, state: &TrieState<DB>, mut path: NibbleSlice) -> Result<Option<ValueRLP>, StoreError> {
         // If the path is prefixed by this node's prefix, delegate to its child.
         // Otherwise, no value is present.
         if path.skip_prefix(&self.prefix) {
-            let child_node = db
-                .get_node(self.child)?
+            let child_node = state
+                .get_node(self.child.clone())?
                 .expect("inconsistent internal tree structure");
 
-            child_node.get(db, path)
+            child_node.get(state, path)
         } else {
             Ok(None)
         }
     }
 
     /// Inserts a value into the subtrie originating from this node and returns the new root of the subtrie
-    pub fn insert(
+    pub fn insert<DB: TrieDB>(
         mut self,
-        db: &mut TrieDB,
+        state: &mut TrieState<DB>,
         mut path: NibbleSlice,
         value: ValueRLP,
     ) -> Result<Node, StoreError> {
@@ -59,21 +61,22 @@ impl ExtensionNode {
             Extension { None+C+prefixR } -> Branch { [ Extension { prefixR, child } , Leaf { Path, Value } , ... ], None, None} (if path not fully traversed)
         */
 
-        self.hash.mark_as_dirty();
-
         if path.skip_prefix(&self.prefix) {
             // Insert into child node
-            let child_node = db
+            let child_node = state
                 .get_node(self.child)?
                 .expect("inconsistent internal tree structure");
 
-            let child_node = child_node.insert(db, path, value)?;
-            self.child = db.insert_node(child_node)?;
+            let child_node = child_node.insert(state, path.clone(), value.clone())?;
+            // Child node will never be a leaf, so the path_offset is not used
+            self.child = child_node.insert_self(0, state)?;
 
             Ok(self.into())
         } else {
             let offset = path.clone().count_prefix_vec(&self.prefix);
             path.offset_add(offset);
+            // Offset used when computing the hash of the new child
+            let child_offset = path.offset() + 1;
             // Split prefix into left_prefix and right_prefix
             let (left_prefix, choice, right_prefix) = self.prefix.split_extract_at(offset);
 
@@ -116,9 +119,9 @@ impl ExtensionNode {
         }
     }
 
-    pub fn remove(
+    pub fn remove<DB: TrieDB>(
         mut self,
-        db: &mut TrieDB,
+        state: &mut TrieState<DB>,
         mut path: NibbleSlice,
     ) -> Result<(Option<Node>, Option<ValueRLP>), StoreError> {
         /* Possible flow paths:
@@ -166,45 +169,33 @@ impl ExtensionNode {
         }
     }
 
-    /// Computes the node's hash given the offset in the path traversed before reaching this node
-    pub fn compute_hash(&self, db: &TrieDB, path_offset: usize) -> Result<NodeHashRef, StoreError> {
-        if let Some(hash) = self.hash.extract_ref() {
-            return Ok(hash);
+    pub fn compute_hash(&self) -> NodeHash {
+        let child_hash = &self.child;
+        let prefix_len = NodeHasher::path_len(self.prefix.len());
+        let child_len = match child_hash {
+            NodeHash::Inline(ref x) => x.len(),
+            NodeHash::Hashed(x) => NodeHasher::bytes_len(32, x[0]),
         };
-        let child_node = db
-            .get_node(self.child)?
-            .expect("inconsistent internal tree structure");
 
-        let child_hash_ref = child_node.compute_hash(db, path_offset + self.prefix.len())?;
-
-        Ok(compute_extension_hash(
-            &self.hash,
-            &self.prefix,
-            child_hash_ref,
-        ))
+        let mut hasher = NodeHasher::new();
+        hasher.write_list_header(prefix_len + child_len);
+        hasher.write_path_vec(&self.prefix, PathKind::Extension);
+        match child_hash {
+            NodeHash::Inline(x) => hasher.write_raw(x),
+            NodeHash::Hashed(x) => hasher.write_bytes(&x.0),
+        }
+        hasher.finalize()
     }
-}
 
-/// Helper function to compute the hash of an extension node
-fn compute_extension_hash<'a>(
-    hash: &'a NodeHash,
-    prefix: &NibbleVec,
-    child_hash_ref: NodeHashRef,
-) -> NodeHashRef<'a> {
-    let prefix_len = NodeHasher::path_len(prefix.len());
-    let child_len = match &child_hash_ref {
-        NodeHashRef::Inline(x) => x.len(),
-        NodeHashRef::Hashed(x) => NodeHasher::bytes_len(x.len(), x[0]),
-    };
-
-    let mut hasher = NodeHasher::new(hash);
-    hasher.write_list_header(prefix_len + child_len);
-    hasher.write_path_vec(prefix, PathKind::Extension);
-    match child_hash_ref {
-        NodeHashRef::Inline(x) => hasher.write_raw(&x),
-        NodeHashRef::Hashed(x) => hasher.write_bytes(&x),
+    /// Inserts the node into the state and returns its hash
+    pub fn insert_self<DB: TrieDB>(
+        self,
+        state: &mut TrieState<DB>,
+    ) -> Result<NodeHash, StoreError> {
+        let hash = self.compute_hash();
+        state.insert_node(self.into(), hash.clone());
+        Ok(hash)
     }
-    hasher.finalize()
 }
 
 #[cfg(test)]
@@ -212,7 +203,7 @@ mod test {
     use super::*;
     use crate::{
         pmt_node,
-        trie::{nibble::Nibble, Trie},
+        trie::{nibble::Nibble, test_utils, Trie},
     };
 
     #[test]
@@ -225,7 +216,7 @@ mod test {
 
     #[test]
     fn get_some() {
-        let mut trie = Trie::new_temp();
+        let mut trie = test_utils::new_temp_trie();
         let node = pmt_node! { @(trie)
             extension { [0], branch {
                 0 => leaf { vec![0x00] => vec![0x12, 0x34, 0x56, 0x78] },
@@ -245,7 +236,7 @@ mod test {
 
     #[test]
     fn get_none() {
-        let mut trie = Trie::new_temp();
+        let mut trie = test_utils::new_temp_trie();
         let node = pmt_node! { @(trie)
             extension { [0], branch {
                 0 => leaf { vec![0x00] => vec![0x12, 0x34, 0x56, 0x78] },
@@ -258,7 +249,7 @@ mod test {
 
     #[test]
     fn insert_passthrough() {
-        let mut trie = Trie::new_temp();
+        let mut trie = test_utils::new_temp_trie();
         let node = pmt_node! { @(trie)
             extension { [0], branch {
                 0 => leaf { vec![0x00] => vec![0x12, 0x34, 0x56, 0x78] },
@@ -278,7 +269,7 @@ mod test {
 
     #[test]
     fn insert_branch() {
-        let mut trie = Trie::new_temp();
+        let mut trie = test_utils::new_temp_trie();
         let node = pmt_node! { @(trie)
             extension { [0], branch {
                 0 => leaf { vec![0x00] => vec![0x12, 0x34, 0x56, 0x78] },
@@ -298,7 +289,7 @@ mod test {
 
     #[test]
     fn insert_branch_extension() {
-        let mut trie = Trie::new_temp();
+        let mut trie = test_utils::new_temp_trie();
         let node = pmt_node! { @(trie)
             extension { [0, 0], branch {
                 0 => leaf { vec![0x00, 0x00] => vec![0x12, 0x34, 0x56, 0x78] },
@@ -318,7 +309,7 @@ mod test {
 
     #[test]
     fn insert_extension_branch() {
-        let mut trie = Trie::new_temp();
+        let mut trie = test_utils::new_temp_trie();
         let node = pmt_node! { @(trie)
             extension { [0, 0], branch {
                 0 => leaf { vec![0x00, 0x00] => vec![0x12, 0x34, 0x56, 0x78] },
@@ -339,7 +330,7 @@ mod test {
 
     #[test]
     fn insert_extension_branch_extension() {
-        let mut trie = Trie::new_temp();
+        let mut trie = test_utils::new_temp_trie();
         let node = pmt_node! { @(trie)
             extension { [0, 0], branch {
                 0 => leaf { vec![0x00, 0x00] => vec![0x12, 0x34, 0x56, 0x78] },
@@ -360,7 +351,7 @@ mod test {
 
     #[test]
     fn remove_none() {
-        let mut trie = Trie::new_temp();
+        let mut trie = test_utils::new_temp_trie();
         let node = pmt_node! { @(trie)
             extension { [0], branch {
                 0 => leaf { vec![0x00] => vec![0x00] },
@@ -378,7 +369,7 @@ mod test {
 
     #[test]
     fn remove_into_leaf() {
-        let mut trie = Trie::new_temp();
+        let mut trie = test_utils::new_temp_trie();
         let node = pmt_node! { @(trie)
             extension { [0], branch {
                 0 => leaf { vec![0x00] => vec![0x00] },
