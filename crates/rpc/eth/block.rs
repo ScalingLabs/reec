@@ -13,7 +13,7 @@ use crate::{
 };
 use reec_core::{
     rlp::encode::RLPEncode,
-    types::{calculate_base_fee_per_blob_gas, BlockBody, BlockHash, BlockHeader, BlockNumber},
+    types::{calculate_base_fee_per_blob_gas, Block, BlockBody, BlockHash, BlockHeader, BlockNumber, Receipt},
 };
 use reec_storage::Store;
 
@@ -38,6 +38,13 @@ pub struct GetBlockReceiptsRequest {
 #[derive(Clone, Debug)]
 pub struct GetRwaHeaderRequest {
     pub block: BlockIdentifier,
+}
+pub struct GetRawBlockRequest {
+    pub block: BlockIdentifier
+}
+
+pub struct GetRawReceipts {
+    pub block: BlockIdentifier
 }
 
 impl RpcHandler for GetBlockByNumberRequest {
@@ -152,7 +159,7 @@ impl RpcHandler for GetBlockReceiptsRequest {
             // Block not found
             _ => return Ok(Value::Null),
         };
-        let receipts = get_all_block_receipts(block_number, header, body, &storage)?;
+        let receipts = get_all_block_rpc_receipts(block_number, header, body, &storage)?;
         serde_json::to_value(&receipts).map_err(|_| RpcErr::Internal)
     }
 }
@@ -184,7 +191,64 @@ impl RpcHandler for GetRwaHeaderRequest {
     }
 }
 
-pub fn get_all_block_receipts(block_number: BlockNumber, header: BlockHeader, body: BlockBody, storage: &Store) -> Result<Vec<RpcReceipt>, RpcErr> {
+impl RpcHandler for GetRawBlockRequest {
+    fn parse(params: &Option<Vec<Value>>) -> Result<GetRawBlockRequest, RpcErr> {
+        let params = params.as_ref().ok_or(RpcErr::BadParams)?;
+        if params.len() != 1 {
+            return Err(RpcErr::BadParams);
+        };
+
+        Ok(GetRawBlockRequest { 
+            block: BlockIdentifier::parse(params[0].clone(), 0)?, 
+        })
+    }
+
+    fn handle(&self, storage: Store) -> Result<Value, RpcErr> {
+        info!("Requested raw block: {}", self.block);
+        let block_number = match self.block.resolve_block_number(&storage)? {
+            Some(block_number) => block_number,
+            _ => return Ok(Value::Null),
+        };
+        let header = storage.get_block_header(block_number)?;
+        let body = storage.get_block_body(block_number)?;
+        let (header, body) = match (header, body) {
+            (Some(header), Some(body)) => (header, body),
+            _ => return Ok(Value::Null),
+        };
+        let block = Block { header, body }.encode_to_vec();
+        serde_json::to_value(format!("0x{}", &hex::encode(block))).map_err(|_| RpcErr::Internal)
+    }
+}
+
+impl RpcHandler for GetRawReceipts {
+    fn parse(params: &Option<Vec<Value>>) -> Result<Self, RpcErr> {
+        let params = params.as_ref().ok_or(RpcErr::BadParams)?;
+        if params.len() != 1 {
+            return Err(RpcErr::BadParams);
+        };
+
+        Ok(GetRawReceipts {
+            block: BlockIdentifier::parse(params[0].clone(), 0)?,
+        })
+    }
+
+    fn handle(&self, storage: Store) -> Result<Value, RpcErr> {
+        let block_number = match self.block.resolve_block_number(&storage)? {
+            Some(block_number) => block_number,
+            _ => return Ok(Value::Null)
+        };
+        let header = storage.get_block_header(block_number)?;
+        let body = storage.get_block_body(block_number)?;
+        let (header, body) = match (header, body) {
+            (Some(header), Some(body)) => (header, body),
+            _ => return Ok(Value::Null),
+        };
+        let receipts: Vec<String> = get_all_block_receipts(block_number, header, body, &storage)?.iter().map(|receipt| format!("0x{}", hex::encode(receipt.encode_to_vec()))).collect();
+        serde_json::to_value(receipts).map_err(|_| RpcErr::Internal)
+    }
+}
+
+pub fn get_all_block_rpc_receipts(block_number: BlockNumber, header: BlockHeader, body: BlockBody, storage: &Store) -> Result<Vec<RpcReceipt>, RpcErr> {
     let mut receipts = Vec::new();
     // Check if this is the genesis block
     if header.parent_hash.is_zero() {
@@ -216,6 +280,23 @@ pub fn get_all_block_receipts(block_number: BlockNumber, header: BlockHeader, bo
         );
         cummulative_gas_used += gas_used;
         current_log_index += receipt.logs.len() as u64;
+        receipts.push(receipt);
+    }
+    Ok(receipts)
+}
+
+pub fn get_all_block_receipts(block_number: BlockNumber, header: BlockHeader, body: BlockBody, storage: &Store) -> Result<Vec<Receipt>, RpcErr> {
+    let mut receipts = Vec::new();
+    // Check if this is the genesis block
+    if header.parent_hash.is_zero() {
+        return Ok(receipts);
+    }
+    for (index, _) in body.transactions.iter().enumerate() {
+        let index = index as u64;
+        let receipt = match storage.get_receipt(block_number, index)? {
+            Some(receipt) => receipt,
+            _ => return Err(RpcErr::Internal),
+        };
         receipts.push(receipt);
     }
     Ok(receipts)

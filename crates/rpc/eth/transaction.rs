@@ -1,4 +1,5 @@
 use reec_core::{
+    rlp::encode::RLPEncode,
     types::{AccessListEntry, BlockHash, BlockHeader, GenericTransaction, TxKind},
     H256, U256,
 };
@@ -39,6 +40,10 @@ pub struct GetTransactionReceiptRequest {
 pub struct CreateAccessListRequest {
     pub transaction: GenericTransaction,
     pub block: Option<BlockIdentifier>,
+}
+
+pub struct GetRawTransaction {
+    pub transaction_hash: H256,
 }
 
 #[derive(Serialize)]
@@ -195,13 +200,13 @@ impl RpcHandler for GetTransactionByHashRequest {
 }
 
 impl RpcHandler for GetTransactionReceiptRequest {
-    fn parse(params: &Option<Vec<Value>>) -> Option<GetTransactionReceiptRequest> {
-        let params = params.as_ref()?;
+    fn parse(params: &Option<Vec<Value>>) -> Result<GetTransactionReceiptRequest, RpcErr> {
+        let params = params.as_ref().ok_or(RpcErr::BadParams)?;
         if params.len() != 1 {
-            return None;
+            return Err(RpcErr::BadParams);
         };
-        Some(GetTransactionReceiptRequest {
-            transaction_hash: serde_json::from_value(params[0].clone()).ok()?,
+        Ok(GetTransactionReceiptRequest {
+            transaction_hash: serde_json::from_value(params[0].clone())?,
         })
     }
 
@@ -219,7 +224,7 @@ impl RpcHandler for GetTransactionReceiptRequest {
             Some(block_body) => block_body,
             _ => return Ok(Value::Null),
         };
-        let receipts = block::get_all_block_receipts(block_number, block_header, block_body, &storage)?;
+        let receipts = block::get_all_block_rpc_receipts(block_number, block_header, block_body, &storage)?;
         serde_json::to_value(receipts.get(index as usize)).map_err(|_| RpcErr::Internal)
     }
 }
@@ -296,6 +301,36 @@ impl RpcHandler for CreateAccessListRequest {
             gas_used,
         };
         serde_json::to_value(result).map_err(|_| RpcErr::Internal)
+    }
+}
+
+impl RpcHandler for GetRawTransaction {
+    fn parse(params: &Option<Vec<Value>>) -> Result<Self, RpcErr> {
+        let params = params.as_ref().ok_or(RpcErr::BadParams)?;
+        if params.len() != 1 {
+            return Err(RpcErr::BadParams);
+        };
+
+        let transaction_str: String = serde_json::from_value(params[0].clone())?;
+        if !transaction_str.starts_with("0x") {
+            return Err(RpcErr::BadHexFormat(0));
+        }
+
+        Ok(GetRawTransaction {
+            transaction_hash: serde_json::from_value(params[0].clone())?,
+        })
+    }
+
+    fn handle(&self, storage: Store) -> Result<Value, RpcErr> {
+        let tx = storage.get_transaction_by_hash(self.transaction_hash)?;
+
+        let tx = match tx {
+            Some(tx) => tx,
+            _ => return Ok(Value::Null),
+        };
+
+        serde_json::to_value(format!("0x{}", &hex::encode(tx.encode_to_vec())))
+            .map_err(|_| RpcErr::Internal)
     }
 }
 
