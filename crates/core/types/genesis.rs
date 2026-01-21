@@ -129,7 +129,7 @@ impl Genesis {
             extra_data: self.extra_data.clone(), 
             prev_randao: self.mix_hash, 
             nonce: self.nonce, 
-            base_fee_per_gas: self.base_fee_per_gas.unwrap_or(INITIAL_BASE_FEE), 
+            base_fee_per_gas: self.base_fee_per_gas.or(Some(INITIAL_BASE_FEE)), 
             withdrawals_root: Some(compute_withdrawals_root(&[])), 
             blob_gas_used, 
             excess_blob_gas, 
@@ -174,6 +174,8 @@ impl Genesis {
 mod tests {
     use std::str::FromStr;
     use std::{fs::File, io::BufReader};
+
+    use crate::types::INITIAL_BASE_FEE;
 
     use super::*;
 
@@ -290,7 +292,7 @@ mod tests {
         assert_eq!(header.extra_data, Bytes::default());
         assert_eq!(header.prev_randao, H256::from([0; 32]));
         assert_eq!(header.nonce, 4660);
-        assert_eq!(header.base_fee_per_gas, INITIAL_BASE_FEE);
+        assert_eq!(header.base_fee_per_gas.unwrap_or(INITIAL_BASE_FEE), INITIAL_BASE_FEE);
         assert_eq!(header.withdrawals_root, Some(compute_withdrawals_root(&[])));
         assert_eq!(header.blob_gas_used, Some(0));
         assert_eq!(header.excess_blob_gas, Some(0));

@@ -5,7 +5,7 @@ use std::cmp::min;
 use db::StoreWrapper;
 use reec_core::{
     Address, BigEndianHash, H256, U256, 
-    types::{AccountInfo, Block, BlockHeader, GenericTransaction, Receipt, Transaction, TxKind, Withdrawal, GWEI_TO_WEI,},
+    types::{AccountInfo, Block, BlockHeader, GenericTransaction, Receipt, Transaction, TxKind, Withdrawal, GWEI_TO_WEI, INITIAL_BASE_FEE},
 };
 use reec_storage::{error::StoreError, Store};
 use lazy_static::lazy_static;
@@ -76,7 +76,7 @@ pub fn execute_tx(
 // Executes a single GenericTransaction, doesn't commit the result or perfrom state transition
 pub fn simulate_tx_from_generic(tx: &GenericTransaction, header: &BlockHeader, state: &mut EvmState, spec_id: SpecId) -> Result<ExecutionResult, EvmError> {
     let block_env = block_env(header);
-    let tx_env = tx_env_from_generic(tx, header.base_fee_per_gas);
+    let tx_env = tx_env_from_generic(tx, header.base_fee_per_gas.unwrap_or(INITIAL_BASE_FEE));
     run_without_commit(tx_env, block_env, state, spec_id)
 }
 
@@ -125,7 +125,7 @@ pub fn create_access_list(
     state: &mut EvmState,
     spec_id: SpecId,
 ) -> Result<(ExecutionResult, AccessList), EvmError> {
-    let mut tx_env = tx_env_from_generic(tx, header.base_fee_per_gas);
+    let mut tx_env = tx_env_from_generic(tx, header.base_fee_per_gas.unwrap_or(INITIAL_BASE_FEE));
     let block_env = block_env(header);
     // Run tx with access list inspector
     let (execution_result, access_list) =
@@ -360,7 +360,7 @@ fn block_env(header: &BlockHeader) -> BlockEnv {
         coinbase: RevmAddress(header.coinbase.0.into()), 
         timestamp: RevmU256::from(header.timestamp), 
         gas_limit: RevmU256::from(header.gas_limit), 
-        basefee: RevmU256::from(header.base_fee_per_gas), 
+        basefee: RevmU256::from(header.base_fee_per_gas.unwrap_or(INITIAL_BASE_FEE)), 
         difficulty: RevmU256::from_limbs(header.difficulty.0), 
         prevrandao: Some(header.prev_randao.as_fixed_bytes().into()), 
         blob_excess_gas_and_price: Some(BlobExcessGasAndPrice::new(header.excess_blob_gas.unwrap_or_default()))
