@@ -1,3 +1,4 @@
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use crate::types::{Endpoint, Node, NodeRecord};
 use bytes::BufMut;
 use reec_core::rlp::{
@@ -7,9 +8,36 @@ use reec_core::rlp::{
     structs::{self, Decoder, Encoder},
 };
 use reec_core::{H256, H512, H520};
-use k256::ecdsa::SigningKey;
+use k256::ecdsa::{RecoveryId, Signature, SigningKey, VerifyingKey};
 use sha3::{Digest, Keccak256};
 
+pub fn get_expiration(seconds: u64) -> u64 {
+    (SystemTime::now() + Duration::from_secs(seconds)).duration_since(UNIX_EPOCH).unwrap().as_secs()
+}
+
+pub fn is_expired(expiration: u64) -> bool {
+    // This cast to a signed integer is needed as the rlp decoder doesn't take into account the sign
+    // otherwise a potential negative expiration would pass since it would take 2^64.
+    (expiration as i64) < SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() as i64
+}
+
+pub fn time_since_in_hs(time: u64) -> u64 {
+    let time = SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(time);
+    SystemTime::now().duration_since(time).unwrap().as_secs() / 3600
+}
+
+pub fn time_now_unix() -> u64 {
+    SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs()
+}
+
+#[derive(Debug)]
+pub enum PacketDecodeErr {
+    #[allow(unused)]
+    RLPDecodeError(RLPDecodeError),
+    InvalidSize,
+    HashMismatch,
+    InvalidSignature,
+}
 
 #[allow(unused)]
 #[allow(Debug)]
@@ -17,26 +45,47 @@ pub struct Packet {
     hash: H256,
     signature: H520,
     message: Message,
+    node_id: H512,
 }
 
 impl Packet {
-    pub fn decode(encoded_packet: &[u8]) -> Result<Packet, RLPDecodeError> {
+    pub fn decode(encoded_packet: &[u8]) -> Result<Packet, PacketDecodeErr> {
         // The packet structure is hash || signature || packet-type || packet-data
         let hash_len = 32;
         let signature_len = 65;
-        let signature_bytes = &encoded_packet[hash_len..hash_len + signature_len];
-        let packet_type = encoded_packet[hash_len + signature_len];
-        let encoded_msg = &encoded_packet[hash_len + signature_len + 1..];
+        let header_size = hash_len + signature_len;
+        if encoded_packet.len() < header_size + 1 {
+            return Err(PacketDecodeErr::InvalidSize);
+        };
 
-        // TODO: verify hash and signature
         let hash = H256::from_slice(&encoded_packet[..hash_len]);
+        let signature_bytes = &encoded_packet[hash_len..header_size];
+        let packet_type = encoded_packet[header_size];
+        let encoded_msg = &encoded_packet[header_size..];
+
+        let head_digest = Keccak256::digest(&encoded_packet[hash_len..]);
+        let header_hash = H256::from_slice(&head_digest);
+
+        if hash != header_hash {
+            return Err(PacketDecodeErr::HashMismatch);
+        }
+
+        let digest = Keccak256::digest(encoded_msg);
+        let signature = &Signature::from_slice(&signature_bytes[0..64]).unwrap();
+        let rid = RecoveryId::from_byte(signature_bytes[64]).unwrap();
+
+        let peer_pk = VerifyingKey::recover_from_prehash(&digest, signature, rid).map_err(|_| PacketDecodeErr::InvalidSignature)?;
+        let encoded = peer_pk.to_encoded_point(false);
+        let node_id = H512::from_slice(&encoded.as_bytes()[1..]);
+
         let signature = H520::from_slice(signature_bytes);
-        let message = Message::decode_with_type(packet_type, encoded_msg)?;
+        let message = Message::decode_with_type(packet_type, &encoded_msg[1..]).map_err(PacketDecodeErr::RLPDecodeError)?;
 
         Ok(Self { 
             hash, 
             signature, 
             message, 
+            node_id,
         })
     }
 
@@ -46,6 +95,15 @@ impl Packet {
 
     pub fn get_message(&self) -> &Message {
         &self.message
+    }
+
+    #[allow(unused)]
+    pub fn get_signature(&self) -> H520 {
+        self.signature
+    }
+
+    pub fn get_node_id(&self) -> H512 {
+        self.node_id
     }
 }
 
@@ -212,6 +270,25 @@ impl RLPDecode for FindNodeMessage {
         let remaining = decoder.finish_unchecked();
         let msg = FindNodeMessage { target, expiration };
         Ok((msg, remaining))
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct FindNodeRequest {
+    /// The number of nodes sent
+    /// We keep track of this number since we will accept neighbour messages until the max_per_bucket
+    pub nodes_sent: usize,
+    /// Unix timestamp tracking when we have sent the request
+    #[allow(unused)]
+    pub sent_at: u64,
+}
+
+impl Default for FindNodeRequest {
+    fn default() -> Self {
+        Self {
+            nodes_sent: 0,
+            sent_at: time_now_unix(),
+        }
     }
 }
 
@@ -658,7 +735,7 @@ mod tests {
     #[test]
     fn test_decode_pong_message() {
         // in this case the pong message does not contain the `enr_seq` field
-        let hash = "2e1fc2a02ad95a1742f6dd41fb7cbff1e08548ba87f63a72221e44026ab1c347";
+        let hash = "65603d1ee62b03a0c2bf31549910f7bd5a783d82e9b83f5d4709083a7a4932f2";
         let signature = "34f486e4e92f2fdf592912aa77ad51db532dd7f9b426092384c9c2e9919414fd480d57f4f3b2b1964ed6eb1c94b1e4b9f6bfe9b44b1d1ac3d94c38c4cce915bc01";
         let pkt_type = "02";
         let msg = "f0c984bebfbc3982765f80a03e1bf98f025f98d54ed2f61bbef63b6b46f50e12d7b937d6bdea19afd640be2384667d9af0";
