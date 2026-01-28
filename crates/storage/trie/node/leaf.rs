@@ -40,9 +40,9 @@ impl LeafNode {
     }
 
     /// Stores the received value and returns the new root of the subtrie previously consisting of self
-    pub fn insert<DB: TrieDB>(
+    pub fn insert(
         mut self,
-        state: &mut TrieState<DB>,
+        state: &mut TrieState,
         path: NibbleSlice,
         value: ValueRLP,
     ) -> Result<Node, StoreError> {
@@ -139,10 +139,10 @@ impl LeafNode {
         ))
     }
 
-    pub fn insert_self<DB: TrieDB>(
+    pub fn insert_self(
         self,
         path_offset: usize,
-        state: &mut TrieState<DB>,
+        state: &mut TrieState,
     ) -> Result<NodeHash, StoreError> {
         let hash = self.compute_hash(path_offset);
         state.insert_node(self.into(), hash.clone());
@@ -152,6 +152,7 @@ impl LeafNode {
 
 #[cfg(test)]
 mod test {
+    use std::sync::Arc;
     use super::*;
     use crate::pmt_node;
     use crate::trie::db::libmdbx::LibmdbxTrieDB;
@@ -189,8 +190,7 @@ mod test {
 
     #[test]
     fn insert_replace() {
-        let db = new_db::<TestNodes>();
-        let mut trie = Trie::new(LibmdbxTrieDB::<TestNodes>::new(&db));
+        let mut trie = Trie::new_temp();
         let node = pmt_node! { @(trie)
             leaf { vec![0x12] => vec![0x12, 0x34, 0x56, 0x78] }
         };
@@ -210,8 +210,7 @@ mod test {
 
     #[test]
     fn insert_branch() {
-        let db = new_db::<TestNodes>();
-        let mut trie = Trie::new(LibmdbxTrieDB::<TestNodes>::new(&db));
+        let mut trie = Trie::new_temp();
         let node = pmt_node! { @(trie)
             leaf { vec![0x12] => vec![0x12, 0x34, 0x56, 0x78] }
         };
@@ -231,8 +230,7 @@ mod test {
 
     #[test]
     fn insert_extension_branch() {
-        let db = new_db::<TestNodes>();
-        let mut trie = Trie::new(LibmdbxTrieDB::<TestNodes>::new(&db));
+        let mut trie = Trie::new_temp();
         let node = pmt_node! { @(trie)
             leaf { vec![0x12] => vec![0x12, 0x34, 0x56, 0x78] }
         };
@@ -250,8 +248,7 @@ mod test {
 
     #[test]
     fn insert_extension_branch_value_self() {
-        let db = new_db::<TestNodes>();
-        let mut trie = Trie::new(LibmdbxTrieDB::<TestNodes>::new(&db));
+        let mut trie = Trie::new_temp();
         let node = pmt_node! { @(trie)
             leaf { vec![0x12] => vec![0x12, 0x34, 0x56, 0x78] }
         };
@@ -269,8 +266,7 @@ mod test {
 
     #[test]
     fn insert_extension_branch_value_other() {
-        let db = new_db::<TestNodes>();
-        let mut trie = Trie::new(LibmdbxTrieDB::<TestNodes>::new(&db));
+        let mut trie = Trie::new_temp();
         let node = pmt_node! { @(trie)
             leaf { vec![0x12, 0x34] => vec![0x12, 0x34, 0x56, 0x78] }
         };
