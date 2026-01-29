@@ -23,6 +23,7 @@ use eth::{
     account::{ GetBalanceRequest, GetCodeRequest, GetStorageAtRequest, GetTransactionCountRequest},
     block::{self, GetBlockByHashRequest, GetBlockByNumberRequest, GetBlockReceiptsRequest, GetBlockTransactionCountRequest, GetRawBlockRequest, GetRawReceipts}, 
     client,
+    fee_market::FeeHistoryRequest,
     transaction::{ CallRequest, CreateAccessListRequest, EstimatedGasRequest, GetRawTransaction, GetTransactionByBlockHashAndIndexRequest, GetTransactionByBlockNumberAndIndexRequest, GetTransactionByHashRequest, GetTransactionReceiptRequest},
 };
 use utils::{RpcErr, RpcErrorMetadata, RpcErrorResponse, RpcNamespace, RpcRequest, RpcSuccessResponse};
@@ -143,6 +144,8 @@ pub fn map_eth_requests(req: &RpcRequest, storage: Store) -> Result<Value, RpcEr
         "eth_call" => CallRequest::call(req, storage),
         "eth_blobBaseFee" => block::get_blob_base_fee(&storage),
         "eth_getTransactionCount" => GetTransactionCountRequest::call(req, storage),
+        "eth_feeHistory" => FeeHistoryRequest::call(req, storage),
+        "eth_estimateGas" => EstimatedGasRequest::call(req, storage),
         _ => Err(RpcErr::MethodNotFound),
     }
 }
