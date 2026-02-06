@@ -1,12 +1,12 @@
 use super::api::StoreEngine;
 use crate::error::StoreError;
-use crate::rlp::{AccountCodeHashRLP, AccountCodeRLP, AccountInfoRLP, AddressRLP, BlockBodyRLP, BlockHashRLP, BlockHeaderRLP, ReceiptRLP, TransactionHashRLP};
+use crate::rlp::{AccountCodeHashRLP, AccountCodeRLP, AddressRLP, BlockBodyRLP, BlockHashRLP, BlockHeaderRLP, ReceiptRLP, TransactionHashRLP};
 use crate::trie::Trie;
 use anyhow::Result;
 use bytes::Bytes;
 use reec_core::rlp::decode::RLPDecode;
 use reec_core::rlp::encode::RLPEncode;
-use reec_core::types::{AccountInfo, BlockNumber, Index, BlockBody, BlockHash, BlockHeader, ChainConfig, Index, Receipt};
+use reec_core::types::{BlockNumber, Index, BlockBody, BlockHash, BlockHeader, ChainConfig, Index, Receipt};
 use ethereum_types::{Address, H256, U256};
 use libmdbx::orm::{Decodable, Encodable};
 use libmdbx::{dupsort, orm::{table, Database}, table_info};
@@ -59,27 +59,6 @@ impl Store {
 }
 
 impl StoreEngine for Store {
-    fn add_account_info(
-            &mut self,
-            address: Address,
-            account_info: AccountInfo,
-        ) -> Result<(), StoreError> {
-            self.write::<AccountInfos>(address.into(), account_info.into())
-    }
-
-    fn remove_account_info(&mut self, address: Address) -> Result<(), StoreError> {
-        self.remove::<AccountInfos>(address.into())
-    }
-
-    fn get_account_info(&self, address: Address) -> Result<Option<AccountInfo>, StoreError> {
-       Ok(self.read::<AccountInfos>(address.into())?.map(|a| a.to()))
-    }
-
-    fn account_infos_iter(&self) -> std::result::Result<Box<dyn Iterator<Item = (Address, AccountInfo)>>, StoreError> {
-        let txn = self.db.begin_read().map_err(StoreError::LibmdbxError)?;
-
-    }
-
     fn account_storage_iter(&mut self, address: Address) -> std::result::Result<Box<dyn Iterator<Item = (H256, U256)>>, StoreError> {
         let txn = self.db.begin_read().map_err(StoreError::LibmdbxError)?;
         let cursor = txn.cursor::<AccountInfos>().map_err(StoreError::LibmdbxError)?;
@@ -347,6 +326,14 @@ impl StoreEngine for Store {
         let trie = Trie::open(db, state_root);
         Ok(Some(trie))
     }
+
+    fn new_state_trie(&self) -> std::result::Result<Trie, StoreError> {
+        let db = Box::new(crate::trie::LibmdbxTrieDB::<StateTrieNodes>::new(
+            self.db.clone(),
+        ));
+        let trie = Trie::new(db);
+        Ok(trie)
+    }
 }
 
 impl Debug for Store {
@@ -367,10 +354,6 @@ table!(
 table!(
     /// Block bodies table.
     ( Bodies ) BlockNumber => BlockBodyRLP
-);
-table!(
-    /// Account infos table.
-    ( AccountInfos ) AddressRLP => AccountInfoRLP
 );
 dupsort!(
     /// Account storage table.
@@ -486,7 +469,6 @@ pub fn init_db(path: Option<impl AsRef<Path>>) -> Database {
         table_info!(BlockNumbers),
         table_info!(Headers),
         table_info!(Bodies),
-        table_info!(AccountInfos),
         table_info!(AccountStorages),
         table_info!(AccountCodes),
         table_info!(Receipts),

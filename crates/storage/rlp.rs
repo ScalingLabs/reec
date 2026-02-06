@@ -4,7 +4,7 @@ use bytes::Bytes;
 
 use reec_core::{
     rlp::{decode::RLPDecode, encode::RLPEncode},
-    types::{AccountInfo, BlockBody, BlockHash, BlockHeader, Receipt},
+    types::{BlockBody, BlockHash, BlockHeader, Receipt},
     Address, H256
 };
 
@@ -13,7 +13,6 @@ use libmdbx::orm::{Decodable, Encodable};
 
 // Account types
 pub type AddressRLP = Rlp<Address>;
-pub type AccountInfoRLP = Rlp<AccountInfo>;
 pub type AccountCodeHashRLP = Rlp<Vec<u8>>;
 pub type AccountCodeRLP = Rlp<Vec<u8>>;
 pub type AccountCodeHashRLP = Rlp<H256>;

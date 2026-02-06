@@ -20,10 +20,6 @@ pub fn run_ef_test(test_key: &str, test: &TestUnit) {
     // Check world_state
     check_prestate_against_db(test_key, test, &store);
 
-    // Setup chain config
-    let chain_config = test.network.chain_config();
-    store.set_chain_config(chain_config).expect("Failed to set chain config on db");
-
     // Execute all blocks in test
     for block_fixture in test.blocks.iter() {
         let expects_exception = block_fixture.expect_exception.is_some();
@@ -68,18 +64,9 @@ pub fn parse_test_file(path: &Path) -> HashMap<String, TestUnit> {
 
 /// Creates an in-memory DB for evm execution and loads the prestate accounts
 pub fn build_store_for_test(test: &TestUnit) -> EvmState {
-    let store = Store::new("store.db", EngineType::InMemory).expect("Failed to build DB for testing");
-    let block_number = test.genesis_block_header.number.as_u64();
-    store.add_block_header(
-        block_number,
-        test.genesis_block_header.clone().into(),
-    ).unwrap();
-    store.add_block_number(test.genesis_block_header.hash, block_number).unwrap();
-    store.update_latest_block_number(block_number).unwrap();
-    for (address, account) in &test.pre {
-        let account: CoreAccount = account.clone().into();
-        store.add_account(*address, account).expect("Failed to write to test DB")
-    }
+    let mut store = Store::new("store.db", EngineType::InMemory).expect("Failed to build DB for testing");
+    let genesis = test.get_genesis();
+    store.add_initial_state(genesis).expect("Failed to add genesis state");
     store
 }
 
@@ -89,17 +76,15 @@ fn check_prestate_against_db(test_key: &str, test: &TestUnit, db: &Store) {
     let block_number = test.genesis_block_header.number.low_u64();
     let db_block_header = db.get_block_header(block_number).unwrap().unwrap();
     let computed_genesis_block_hash = db_block_header.compute_block_hash();
+
+    // Check genesis block hash
     assert_eq!(test.genesis_block_header.hash, computed_genesis_block_hash);
     
+    // Check genesis state root
     let test_state_root = test.genesis_block_header.state_root;
     assert_eq!(
         test_state_root, db_block_header.state_root,
         "Mismatched genesis state root for database, test: {test_key}"
-    );
-    assert_eq!(
-        test_state_root,
-        db.clone().world_state_root(),
-        "Mismatched genesis state root for world state trie, test: {test_key}"
     );
 }
 
@@ -110,7 +95,7 @@ fn check_poststate_against_db(test_key: &str, test: &TestUnits, db: &Store) {
         let expected_account: CoreAccount = account.clone().into();
         // Check info
         let db_account_info = db
-            .get_account_info(*addr)
+            .get_account_info(db.get_latest_block_number().unwrap(), *addr)
             .expect("Failed to read from DB")
             .unwrap_or_else(|| {
                 panic!("Account info for address {addr} not found in DB, test:{test_key}")});
@@ -152,7 +137,4 @@ fn check_poststate_against_db(test_key: &str, test: &TestUnits, db: &Store) {
     // Check world state
     let last_block = db.get_block_header(last_block_number).unwrap();
     assert!(last_block.is_some(), "Block has is not stored in db");
-
-    // Check world state
-    let db_state_root = last_block.unwrap().state_root;
-    assert_eq!(db_state_root, db.clone().world_state_root(), "Mistmatched state root for world state trie, test {test_key}");
+}

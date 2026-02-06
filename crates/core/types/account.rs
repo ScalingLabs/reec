@@ -5,11 +5,19 @@ use ethereum_types::{H256, U256};
 use lazy_static::lazy_static;
 use patricia_merkle_tree::PatriciaMerkleTree;
 use sha3::{Digest as _,Keccak256};
-use crate::rlp::{encode::RLPEncode, decode::RLPDecode, structs::{Encoder, Decoder}, error::RLPDecodeError};
+use crate::rlp::{
+    constants::RLP_NULL,
+    encode::RLPEncode, 
+    decode::RLPDecode, 
+    structs::{Encoder, Decoder}, 
+    error::RLPDecodeError
+};
 use super::GenesisAccount;
 
 lazy_static! {
     pub static ref EMPTY_KECCACK_HASH: H256 = H256::from_slice(&hex::decode("c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470").unwrap());
+    // Hash value for an empty trie, equal to keccak(RLP_NULL)
+    pub static ref EMPTY_TRIE_HASH: H256 = H256::from_slice(Keccak256::new().chain_update([RLP_NULL]).finalize().as_slice(),);
 }
 
 #[allow(unused)]
@@ -40,6 +48,17 @@ impl Default for AccountInfo {
             code_hash: *EMPTY_KECCACK_HASH, 
             balance: Default::default(), 
             nonce: Default::default() 
+        }
+    }
+}
+
+impl Default for AccountState {
+    fn default() -> Self {
+        Self {
+            nonce: Default::default(),
+            balance: Default::default(),
+            storage_root: *EMPTY_TRIE_HASH,
+            code_hash: *EMPTY_KECCACK_HASH,
         }
     }
 }

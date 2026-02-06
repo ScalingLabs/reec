@@ -1,7 +1,6 @@
 use crate::{
     error::StoreError,
     trie::{
-        db::TrieDB,
         // hashing::{NodeHash, NodeHashRef, NodeHasher, PathKind},
         nibble::NibbleSlice,
         node::BranchNode,
@@ -152,13 +151,10 @@ impl LeafNode {
 
 #[cfg(test)]
 mod test {
-    use std::sync::Arc;
+    
     use super::*;
     use crate::pmt_node;
-    use crate::trie::db::libmdbx::LibmdbxTrieDB;
-    use crate::trie::test_utils::{new_db, TestNodes};
-    use crate::trie::node_ref::NodeRef;
-    use crate::trie::{test_utils, Trie};
+    use crate::trie::Trie;
 
     #[test]
     fn new() {

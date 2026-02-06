@@ -5,12 +5,15 @@ use std::cmp::min;
 use db::StoreWrapper;
 use reec_core::{
     Address, BigEndianHash, H256, U256, 
-    types::{AccountInfo, Block, BlockHeader, GenericTransaction, Receipt, Transaction, TxKind, Withdrawal, GWEI_TO_WEI, INITIAL_BASE_FEE},
+    types::{AccountInfo, Block, BlockHeader, BlockNumber, GenericTransaction, Receipt, Transaction, TxKind, Withdrawal, GWEI_TO_WEI, INITIAL_BASE_FEE},
 };
-use reec_storage::{error::StoreError, Store};
+use reec_storage::{error::StoreError, AccountUpdate, Store};
 use lazy_static::lazy_static;
 use revm::{
-    Database, DatabaseCommit, Evm, db::states::bundle_state::BundleRetention, inspector_handle_register, inspectors::TracerEip3155, precompile::{PrecompileSpecId, Precompiles}, 
+    Database, DatabaseCommit, Evm, db::{states::bundle_state::BundleRetention, AccountStatus}, 
+    inspector_handle_register, 
+    inspectors::TracerEip3155, 
+    precompile::{PrecompileSpecId, Precompiles}, 
     primitives::{BlobExcessGasAndPrice, BlockEnv, TxEnv, B256, U256 as RevmU256},
 };
 use revm_inspectors::access_list::AccessListInspector;
@@ -33,7 +36,7 @@ pub struct EvmState(revm::db::State<StoreWrapper>);
 impl EvmState {
     /// Get a reference to inner `Store` database
     pub fn database(&self) -> &Store {
-        &self.0.database.0
+        &self.0.database.store
     }
 }
 
@@ -213,19 +216,25 @@ fn run_without_commit(tx_env: &TxEnv, mut block_env: BlockEnv, state: &mut EvmSt
     Ok(tx_result.result.into())
 }
 
-// Merges transitions stored when executing transactions and applies the resulting changes to the DB
-pub fn apply_state_transitions(state: &mut EvmState) -> Result<(), StoreError> {
+/// Merges transitions stored when executing transactions and returns the resulting account updates
+/// Doesn't update the DB
+pub fn get_state_transitions(state: &mut EvmState) -> Vec<AccountUpdate> {
     state.0.merge_transitions(BundleRetention::PlainState);
     let bundle = state.0.take_bundle();
     // Update accounts
+    let mut account_updates = Vec::new();
     for (address, account) in bundle.state() {
         if account.status.is_not_modified() {
             continue;
         }
         let address = Address::from_slice(address.0.as_slice());
-        // Remove account from DB if destroyed
-        if account.status.was_destroyed() {
-            state.database().remove_account(address)?;
+        // Remove account from DB if destroyed (Process DestroyedChanged as changed account)
+        if matches!(
+            account.status,
+            AccountStatus::Destroyed | AccountStatus::DestroyedAgain
+        ) {
+            account_updates.push(AccountUpdate::removed(address));
+            continue;
         }
 
         // If account is empty, do not add to the database
@@ -236,6 +245,7 @@ pub fn apply_state_transitions(state: &mut EvmState) -> Result<(), StoreError> {
             }
 
         // Apply account changes to DB
+        let mut account_update = AccountUpdate::new(address);
         // If the account was changed then both original and current info will be present in the bundle account
         if account.is_info_changed() {
             // Update account info in DB
@@ -246,14 +256,13 @@ pub fn apply_state_transitions(state: &mut EvmState) -> Result<(), StoreError> {
                     balance: U256::from_little_endian(new_acc_info.balance.as_le_slice()),
                     nonce: new_acc_info.nonce,
                 };
-                state.database().add_account_info(address, account_info)?;
+                
+                account_update.info = Some(account_info);
 
                 if account.is_contract_changed() {
                     // Update code in db
                     if let Some(code) = new_acc_info.code {
-                        state
-                            .database()
-                            .add_account_code(code_hash, code.original_bytes().clone().0)?;
+                        account_update.code = Some(code.original_bytes().clone().0);
                     }
                 }
             }
@@ -261,16 +270,16 @@ pub fn apply_state_transitions(state: &mut EvmState) -> Result<(), StoreError> {
         // Update account storage in DB
         for (key, slot) in account.storage.iter() {
             if slot.is_changed() {
-                state.database().add_storage_at(
-                    address,
+                account_update.added_storage.insert(
                     H256::from_uint(&U256::from_little_endian(key.as_le_slice())),
                     U256::from_little_endian(
                         slot.present_value().as_le_slice()),
-                )?;
+                );
             }
         }
+        account_updates.push(account_update)
     }
-    Ok(())
+    account_updates
 }
 
 /// Processes a block's withdrawals, updating the account balances in the state
@@ -290,10 +299,13 @@ pub fn process_withdrawals(state: &mut EvmState, withdrawals: &[Withdrawal]) -> 
 }
 
 /// Builds EvmState from a Store
-pub fn evm_state(store: Store) -> EvmState {
+pub fn evm_state(store: Store, block_number: BlockNumber) -> EvmState {
     EvmState(
         revm::db::State::builder()
-            .with_database(StoreWrapper(store))
+            .with_database(StoreWrapper{
+                store,
+                block_number,
+            })
             .with_bundle_update()
             .without_state_clear()
             .build()

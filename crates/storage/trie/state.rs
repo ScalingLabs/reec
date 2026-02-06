@@ -1,6 +1,5 @@
 use crate::error::StoreError;
 use reec_core::rlp::{decode::RLPDecode, encode::RLPEncode};
-use ethereum_types::H256;
 use super::db::TrieDB;
 
 /// Libmdbx database representing the trie state

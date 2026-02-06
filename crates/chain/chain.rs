@@ -4,7 +4,7 @@ use constants::{GAS_PER_BLOB, MAX_BLOB_GAS_PER_BLOCK, MAX_BLOB_NUMBER_PER_BLOCK}
 use error::{ChainError, InvalidBlockError};
 use reec_core::types::{validate_block_header, validate_cancun_header_fields, validate_no_cancun_header_fields, Block, BlockHeader, BlockNumber, EIP4844Transaction, Receipt, Transaction};
 use reec_core::H256;
-use reec_evm::{EvmState, SpecId, apply_state_transitions, evm_state, execute_block, get_total_blob_gas, spec_id};
+use reec_evm::{EvmState, SpecId, evm_state, execute_block, get_state_transitions, get_total_blob_gas, spec_id};
 use reec_storage::error::StoreError;
 use reec_storage::Store;
 
@@ -17,15 +17,18 @@ pub fn add_block(block: &Block, storage: &Store) -> Result<(), ChainError> {
     extends_canonical_chain(block, storage)?;
     // Validate if it can be the new head and find the parent
     let parent_header = find_parent_header(&block.header, storage)?;
-    let mut state = evm_state(storage.clone());
+    let mut state = evm_state(storage.clone(), parent_header.number);
     // Validate the block pre-execution
     validate_block(block, &parent_header, &state)?;
     let receipts = execute_block(block, &mut state)?;
     validate_gas_used(&receipts, &block.header)?;
-    apply_state_transitions(&mut state)?;
+    
+    let account_updates = get_state_transitions(&mut state);
+    // Apply the account updates over the last block's state and compute the new state root
+    let new_state_root = state.database().apply_account_updates(parent_header.number, &account_updates)?.unwrap_or_default();
 
     // Check state root matches the one in block header after execution
-    validate_state_root(&block.header, storage)?;
+    validate_state_root(&block.header, new_state_root)?;
     store_block(storage, block.clone())?;
     store_receipts(storage, receipts, block.header.number)?;
 
@@ -54,9 +57,9 @@ pub fn store_receipts(storage: &Store, receipts: Vec<Receipt>, block_number: Blo
 }
 
 /// Performs post-execution checks
-pub fn validate_state_root(block_header: &BlockHeader, storage: Store) -> Result<(), ChainError> {
+pub fn validate_state_root(block_header: &BlockHeader, new_state_root: H256) -> Result<(), ChainError> {
     // Compare state root
-    if storage.world_state_root() == block_header.state_root {
+    if new_state_root == block_header.state_root {
         Ok(())
     } else {
         Err(ChainError::InvalidBlock(InvalidBlockError::StateRootMismatch,))
