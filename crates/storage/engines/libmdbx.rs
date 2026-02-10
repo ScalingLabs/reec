@@ -1,6 +1,6 @@
 use super::api::StoreEngine;
 use crate::error::StoreError;
-use crate::rlp::{AccountCodeHashRLP, AccountCodeRLP, AddressRLP, BlockBodyRLP, BlockHashRLP, BlockHeaderRLP, ReceiptRLP, TransactionHashRLP};
+use crate::rlp::{AccountCodeHashRLP, AccountCodeRLP, AddressRLP, BlockBodyRLP, BlockHashRLP, BlockHeaderRLP, ReceiptRLP, Rlp, TransactionHashRLP, TupleRLP};
 use crate::trie::Trie;
 use anyhow::Result;
 use bytes::Bytes;
@@ -56,6 +56,13 @@ impl Store {
             .map_err(StoreError::LibmdbxError)?;
         txn.commit().map_err(StoreError::LibmdbxError)
     }
+
+    fn get_block_hash_by_block_number(
+        &self,
+        number: BlockNumber,
+    ) -> Result<Option<BlockHash>, StoreError> {
+        Ok(self.read::<CanonicalBlockHashes>(number)?.map(|a| a.to()))
+    }
 }
 
 impl StoreEngine for Store {
@@ -69,32 +76,54 @@ impl StoreEngine for Store {
 
     fn add_block_header(
         &mut self,
-        block_number: BlockNumber,
+        block_hash: BlockHash,
         block_header: BlockHeader,
     ) -> std::result::Result<(), StoreError> {
-        self.write::<Headers>(block_number, block_header.into())
+        self.write::<Headers>(block_hash.into(), block_header.into())
     }
 
     fn get_block_header(
         &self,
         block_number: BlockNumber,
     ) -> Result<Option<BlockHeader>, StoreError> {
-        Ok(self.read::<Headers>(block_number)?.map(|a| a.to()))
+        if let Some(hash) = self.get_block_hash_by_block_number(block_number)? {
+            Ok(self.read::<Headers>(hash.into())?.map(|b| b.to()))
+        } else {
+            Ok(None)
+        }
     }
 
     fn add_block_body(
         &mut self,
-        block_number: BlockNumber,
+        block_hash: BlockHash,
         block_body: BlockBody,
     ) -> std::result::Result<(), StoreError> {
-        self.write::<Bodies>(block_number, block_body.into())
+        self.write::<Bodies>(block_hash.into(), block_body.into())
     }
 
     fn get_block_body(
         &self,
         block_number: BlockNumber,
     ) -> std::result::Result<Option<BlockBody>, StoreError> {
-        Ok(self.read::<Bodies>(block_number)?.map(|b| b.to()))
+        if let Some(hash) = self.get_block_hash_by_block_number(block_number)? {
+            self.get_block_body_by_hash(hash)
+        } else {
+            Ok(None)
+        }
+    }
+
+    fn get_block_body_by_hash(
+        &self,
+        block_hash: BlockHash,
+    ) -> Result<Option<BlockBody>, StoreError> {
+        Ok(self.read::<Bodies>(block_hash.into())?.map(|b| b.to()))
+    }
+
+    fn get_block_header_by_hash(
+        &self,
+        block_hash: BlockHash,
+    ) -> Result<Option<BlockHeader>, StoreError> {
+        Ok(self.read::<Headers>(block_hash.into())?.map(|b| b.to()))
     }
 
     fn add_block_number(
@@ -119,11 +148,10 @@ impl StoreEngine for Store {
 
     fn add_receipt(
         &mut self,
-        block_number: BlockNumber,
-        index: Index,
+        block_hash: BlockHash,
         receipt: Receipt,
     ) -> Result<(), StoreError> {
-        self.write::<Receipts>((block_number, index), receipt.into())
+        self.write::<Receipts>(((block_hash, index).into(), receipt.into())
     }
 
     fn get_receipt(
@@ -131,23 +159,41 @@ impl StoreEngine for Store {
         block_number: BlockNumber,
         index: Index,
     ) -> Result<Option<Receipt>, StoreError> {
-        Ok(self.read::<Receipts>((block_number, index))?.map(|r| r.to())
+        if let Some(hash) = self.get_block_hash_by_block_number(block_number)? {
+            Ok(self.read::<Receipts>((hash, index).into())?.map(|b| b.to()))
+        } else {
+            Ok(None)
+        }
     }
 
     fn add_transaction_location(
             &mut self,
             transaction_hash: H256,
             block_number: BlockNumber,
+            block_hash: BlockHash,
             index: Index,
         ) -> Result<(), StoreError> {
-        self.write::<TransactionLocations>(transaction_hash.into(), (block_number, index))
+        self.write::<TransactionLocations>(
+            transaction_hash.into(),
+            (block_number, block_hash, index).into(),
+        )
     }
 
     fn get_transaction_location(
             &self,
             transaction_hash: H256
-        ) -> Result<Option<(BlockNumber, Index)>, StoreError> {
-       self.read::<TransactionLocations>(transaction_hash.into())
+        ) -> Result<Option<(BlockNumber, BlockHash, Index)>, StoreError> {
+        let txn = self.db.begin_read().map_err(StoreError::LibmdbxError)?;
+        let cursor = txn
+            .cursor::<TransactionLocations>()
+            .map_err(StoreError::LibmdbxError)?;
+        Ok(cursor
+            .walk_key(transaction_hash.into(), None)
+            .map_while(|res| res.ok().map(|t| t.to()))
+            .find(|(number, hash, _index)| {
+                self.get_block_hash_by_block_number(*number)
+                    .is_ok_and(|o| o == Some(*hash))
+            }))
     }
 
     fn add_storage_at(
@@ -334,6 +380,14 @@ impl StoreEngine for Store {
         let trie = Trie::new(db);
         Ok(trie)
     }
+
+    fn set_canonical_block(
+        &mut self,
+        number: BlockNumber,
+        hash: BlockHash,
+    ) -> Result<(), StoreError> {
+        self.write::<CanonicalBlockHashes>(number, hash.into())
+    }
 }
 
 impl Debug for Store {
@@ -344,16 +398,21 @@ impl Debug for Store {
 
 // Define tables
 table!(
+    /// The canonical block hash for each block number. It represents the canonical chain.
+    ( CanonicalBlockHashes ) BlockNumber => BlockHashRLP
+);
+
+table!(
     /// Block hash to number table.
     ( BlockNumbers ) BlockHash => BlockNumber
 );
 table!(
     /// Block headers table.
-    ( Headers ) BlockNumber => BlockHeaderRLP
+    ( Headers ) BlockHashRLP => BlockHeaderRLP
 );
 table!(
     /// Block bodies table.
-    ( Bodies ) BlockNumber => BlockBodyRLP
+    ( Bodies ) BlockHashRLP => BlockBodyRLP
 );
 dupsort!(
     /// Account storage table.
@@ -365,11 +424,11 @@ table!(
 );
 dupsort!(
     /// Receipts table.
-    ( Receipts ) (BlockNumber, Index)[Index] => ReceiptRLP
+    ( Receipts ) TupleRLP<BlockHash, Index>[Index] => ReceiptRLP
 );
-table!(
+dupsort!(
     /// Transaction locations table.
-    ( TransactionLocations ) TransactionHashRLP => (BlockNumber, Index)
+    ( TransactionLocations ) TransactionHashRLP => (BlockNumber, BlockHash, Index)
 );
 
 table!(
@@ -475,6 +534,7 @@ pub fn init_db(path: Option<impl AsRef<Path>>) -> Database {
         table_info!(TransactionLocations),
         table_info!(ChainData),
         table_info!(StateTrieNodes),
+        table_info!(CanonicalBlockHashes),
     ]
     .into_iter()
     .collect();
@@ -662,5 +722,17 @@ mod test {
             let value2 = cursor.seek_value(key, subkey2).unwrap().unwrap();
             assert_eq!(value2, (subkey2, value));
         };
+
+        // Walk through duplicates
+        {
+            let txn = db.begin_read().unwrap();
+            let cursor = txn.cursor::<DupsortExample>().unwrap();
+            let mut acc = 0;
+            for key in cursor.walk_key(key, None).map(|r| r.unwrap().0 .0) {
+                acc += key;
+            }
+
+            assert_eq!(acc, 58);
+        }
     }
 }
