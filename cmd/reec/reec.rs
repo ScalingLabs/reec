@@ -1,5 +1,5 @@
 use bytes::Bytes;
-use reec_chain::add_block;
+use reec_blockchain::add_block;
 use reec_core::types::{Block, Genesis};
 use reec_net::bootnode::BootNode;
 use reec_net::node_id_from_signing_key;

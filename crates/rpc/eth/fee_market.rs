@@ -1,4 +1,4 @@
-use reec_chain::constants::MAX_BLOB_GAS_PER_BLOCK;
+use reec_blockchain::constants::MAX_BLOB_GAS_PER_BLOCK;
 use reec_core::types::{Block, Transaction};
 use serde::Serialize;
 use serde_json::Value;

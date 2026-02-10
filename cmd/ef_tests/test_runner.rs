@@ -1,6 +1,6 @@
 use std::{collections::HashMap, path::Path};
 use crate::types::{BlockWithRLP, TestUnit};
-use reec_chain::add_block;
+use reec_blockchain::add_block;
 use reec_core::{
     rlp::decode::RLPDecode,
     types::{Account as CoreAccount, Block as CoreBlock, BlockHeader as CoreBlockHeader},

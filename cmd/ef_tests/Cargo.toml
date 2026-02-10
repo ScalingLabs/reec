@@ -4,7 +4,7 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
-reec-chain.workspace = true
+reec-blockchain.workspace = true
 reec-core.workspace = true
 reec-storage.workspace = true
 serde.workspace = true

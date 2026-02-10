@@ -1,5 +1,5 @@
 [package]
-name = "reec-chain"
+name = "reec-blockchain"
 version = "0.1.0"
 edition = "2021"
 
@@ -10,4 +10,4 @@ reec-storage.workspace = true
 reec-evm.workspace = true
 
 [lib]
-path = "./chain.rs"
+path = "./blockchain.rs"

@@ -1,5 +1,5 @@
-use reec_chain::error::ChainError;
-use reec_chain::{add_block, latest_valid_hash};
+use reec_blockchain::error::ChainError;
+use reec_blockchain::{add_block, latest_valid_hash};
 use reec_core::H256;
 use reec_storage::Store;
 use serde_json::Value;

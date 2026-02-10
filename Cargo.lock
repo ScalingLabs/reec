@@ -1049,7 +1049,7 @@ dependencies = [
  "datatest-stable",
  "hex",
  "lazy_static",
- "reec-chain",
+ "reec-blockchain",
  "reec-core",
  "reec-storage",
  "serde",
@@ -2274,7 +2274,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "reec-chain"
+name = "reec-blockchain"
 version = "0.1.0"
 dependencies = [
  "reec-core",
@@ -2347,7 +2347,7 @@ dependencies = [
  "hex",
  "k256",
  "rand 0.8.5",
- "reec-chain",
+ "reec-blockchain",
  "reec-core",
  "reec-evm",
  "reec-net",
@@ -2369,7 +2369,7 @@ dependencies = [
  "hex",
  "hex-literal",
  "jsonwebtoken",
- "reec-chain",
+ "reec-blockchain",
  "reec-core",
  "reec-evm",
  "reec-net",

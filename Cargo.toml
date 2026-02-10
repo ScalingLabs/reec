@@ -1,6 +1,6 @@
 [workspace]
 members = [
-    "crates/chain",
+    "crates/blockchain",
     "crates/core",
     "crates/net", 
     "crates/rpc",
@@ -17,7 +17,7 @@ version = "0.1.0"
 edition = "2021"
 
 [workspace.dependencies]
-reec-chain = { path = "./crates/chain"}
+reec-blockchain = { path = "./crates/blockchain"}
 reec-core = { path = "./crates/core" }
 reec-net = { path = "./crates/net" }
 reec-rpc = { path = "./crates/rpc" }
