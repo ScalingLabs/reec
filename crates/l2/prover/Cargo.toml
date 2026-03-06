@@ -1,0 +1,62 @@
+[package]
+name = "reec-prover"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+serde_json.workspace = true
+serde.workspace = true
+bytes.workspace = true
+ethereum-types.workspace = true
+tokio.workspace = true
+tokio-util.workspace = true
+tracing-subscriber = { workspace = true, features = ["env-filter"] }
+tracing.workspace = true
+hex.workspace = true
+thiserror.workspace = true
+
+# reec
+reec-core.workspace = true
+reec-vm.workspace = true
+reec-rlp.workspace = true
+
+# l2
+reec-l2.workspace = true
+
+zkvm_interface = { path = "./zkvm/interface", default-features = false }
+
+# risc0
+risc0-zkvm = { version = "1.2.0" }
+
+# sp1
+sp1-sdk = "3.4.0"
+
+[dev-dependencies]
+reec-vm.workspace = true
+reec-storage.workspace = true
+reec-blockchain.workspace = true
+
+[lib]
+name = "reec_prover_lib"
+path = "src/lib.rs"
+
+[[bin]]
+name = "reec_prover"
+path = "src/main.rs"
+
+[features]
+default = []
+## risc0
+build_risc0 = ["zkvm_interface/build_risc0"]
+gpu = ["risc0-zkvm/cuda", "sp1-sdk/cuda"]
+## sp1
+build_sp1 = ["zkvm_interface/build_sp1"]
+
+
+[lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+indexing_slicing = "deny"
+as_conversions = "deny"
+unnecessary_cast = "warn"
+panic = "deny"

@@ -1,12 +1,14 @@
-use crate::error::StoreError;
-use reec_core::rlp::{decode::RLPDecode, encode::RLPEncode};
+use std::collections::HashMap;
+
+use crate::error::TrieError;
+use reec_rlp::{decode::RLPDecode, encode::RLPEncode};
+
 use super::db::TrieDB;
 
 /// Libmdbx database representing the trie state
 /// It contains a table mapping node hashes to rlp encoded nodes
 /// All nodes are stored in the DB and no node is ever removed
 use super::{node::Node, node_hash::NodeHash};
-
 pub struct TrieState {
     db: Box<dyn TrieDB>,
     cache: HashMap<NodeHash, Node>,
@@ -14,7 +16,7 @@ pub struct TrieState {
 
 impl TrieState {
     /// Creates a TrieState referring to a db.
-    pub fn new(db: Box<dyn TrieDB>) -> TrieState<DB> {
+    pub fn new(db: Box<dyn TrieDB>) -> TrieState {
         TrieState {
             db,
             cache: Default::default(),
@@ -22,31 +24,52 @@ impl TrieState {
     }
 
     /// Retrieves a node based on its hash
-    pub fn get_node(&self, hash: NodeHash) -> Result<Option<Node>, StoreError> {
+    pub fn get_node(&self, hash: NodeHash) -> Result<Option<Node>, TrieError> {
+        // Decode the node if it is inlined
+        if let NodeHash::Inline(encoded) = hash {
+            return Ok(Some(Node::decode_raw(&encoded)?));
+        }
         if let Some(node) = self.cache.get(&hash) {
             return Ok(Some(node.clone()));
         };
         self.db
             .get(hash.into())?
-            .map(|rlp| Node::decode(&rlp).map_err(StoreError::RLPDecode))
+            .map(|rlp| Node::decode(&rlp).map_err(TrieError::RLPDecode))
             .transpose()
     }
 
     /// Inserts a node
     pub fn insert_node(&mut self, node: Node, hash: NodeHash) {
-        self.cache.insert(hash, node);
+        // Don't insert the node if it is already inlined on the parent
+        if matches!(hash, NodeHash::Hashed(_)) {
+            self.cache.insert(hash, node);
+        }
     }
 
     /// Commits cache changes to DB and clears it
     /// Only writes nodes that follow the root's canonical trie
-    pub fn commit(&mut self, root: &NodeHash) -> Result<(), StoreError> {
+    pub fn commit(&mut self, root: &NodeHash) -> Result<(), TrieError> {
         self.commit_node(root)?;
         self.cache.clear();
         Ok(())
     }
 
     // Writes a node and its children into the DB
-    fn commit_node(&mut self, node_hash: &NodeHash) -> Result<(), StoreError> {
+    fn commit_node(&mut self, node_hash: &NodeHash) -> Result<(), TrieError> {
+        let mut to_commit = vec![];
+        self.commit_node_tail_recursive(node_hash, &mut to_commit)?;
+
+        self.db.put_batch(to_commit)?;
+
+        Ok(())
+    }
+
+    // Writes a node and its children into the DB
+    fn commit_node_tail_recursive(
+        &mut self,
+        node_hash: &NodeHash,
+        acc: &mut Vec<(Vec<u8>, Vec<u8>)>,
+    ) -> Result<(), TrieError> {
         let Some(node) = self.cache.remove(node_hash) else {
             // If the node is not in the cache then it means it is already stored in the DB
             return Ok(());
@@ -56,14 +79,25 @@ impl TrieState {
             Node::Branch(n) => {
                 for child in n.choices.iter() {
                     if child.is_valid() {
-                        self.commit_node(child)?;
+                        self.commit_node_tail_recursive(child, acc)?;
                     }
                 }
             }
-            Node::Extension(n) => self.commit_node(&n.child)?,
+            Node::Extension(n) => self.commit_node_tail_recursive(&n.child, acc)?,
             Node::Leaf(_) => {}
         }
         // Commit self
-        self.db.put(node_hash.into(), node.encode_to_vec())
+        acc.push((node_hash.into(), node.encode_to_vec()));
+
+        Ok(())
+    }
+
+    /// Writes a node directly to the DB bypassing the cache
+    pub fn write_node(&mut self, node: Node, hash: NodeHash) -> Result<(), TrieError> {
+        // Don't insert the node if it is already inlined on the parent
+        if matches!(hash, NodeHash::Hashed(_)) {
+            self.db.put(hash.into(), node.encode_to_vec())?;
+        }
+        Ok(())
     }
 }

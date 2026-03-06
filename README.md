@@ -83,6 +83,48 @@ Implement DevP2P protocol, including RLPx `p2p` and `eth` capabilities. This wil
  - `engine_getPayloadV3`
  - `engine_newPayloadV3` (with block building)
 
+## Quick Start (L1 localnet)
+
+### Prerequisites
+- [Kurtosis](https://docs.kurtosis.com/install/#ii-install-the-cli)
+- [Rust](#rust)
+- [Docker](https://docs.docker.com/engine/install/)
+```shell
+make localnet
+```
+
+This make target will:
+1. Build our node inside a docker image.
+2. Fetch our fork [ethereum package](https://github.com/ethpandaops/ethereum-package), a private testnet on which multiple ethereum clients can interact.
+3. Start the localnet with kurtosis.
+
+If everything went well, you should be faced with our client's logs (ctrl-c to leave)
+
+To stop everything, simply run:
+```shell
+make stop-localnet
+```
+
+## Dev Setup
+### Build
+
+#### Rust
+To build the node, you will need the rust toolchain:
+1. First, [install asdf](https://asdf-vm.com/guide/getting-started.html):
+2. Add the rust plugin:
+```shell
+asdf plugin-add rust https://github.com/asdf-community/asdf-rust.git
+```
+3. cd into the project and run:
+```shell
+asdf install
+```
+
+You now should be able to build the client:
+```bash
+make build
+```
+
 ## 🤝 Contributing
 We're building reec in the open and welcome contributors!
 

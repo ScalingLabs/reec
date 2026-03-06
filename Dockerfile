@@ -1,7 +1,7 @@
-FROM rust:1.79 AS chef
+FROM rust:1.85 AS chef
 
-RUN apt-get update && apt-get install -y \ 
-build-essential \
+RUN apt-get update && apt-get install -y \
+	build-essential \
 	libclang-dev \
 	libc6 \
 	libssl-dev \
@@ -17,22 +17,18 @@ COPY . .
 RUN cargo chef prepare --recipe-path recipe.json
 
 FROM chef AS builder
-COPY --from=planner /reec/recipe.json recipe.json 
+COPY --from=planner /reec/recipe.json recipe.json
 # Build dependencies only, these remained cached
-RUN cargo chef cook --release --recipe-path recipe.json 
+RUN cargo chef cook --release --recipe-path recipe.json
 
+# Optional build flags
+ARG BUILD_FLAGS=""
 COPY . .
-RUN cargo build --release
+RUN cargo build --release $BUILD_FLAGS
 
 FROM ubuntu:24.04
-
 WORKDIR /usr/local/bin
 
-COPY --from=buider reec/target/release/reec .
-
+COPY --from=builder reec/target/release/reec .
 EXPOSE 8545
-
 ENTRYPOINT [ "./reec" ]
-
-
-

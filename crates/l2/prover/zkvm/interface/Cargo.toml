@@ -1,0 +1,31 @@
+[package]
+name = "zkvm_interface"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+serde = { version = "1.0.203", features = ["derive"] }
+serde_with = "3.11.0"
+thiserror = "1.0.61"
+
+reec-core = { path = "../../../../common/", default-features = false }
+reec-vm = { path = "../../../../vm", default-features = false }
+reec-rlp = { path = "../../../../common/rlp", default-features = false }
+reec-storage = { path = "../../../../storage/store", default-features = false }
+reec-trie = { path = "../../../../storage/trie", default-features = false }
+
+[build-dependencies]
+risc0-build = { version = "1.2.0" }
+sp1-build = "3.4.0"
+
+[package.metadata.risc0]
+methods = ["risc0"]
+
+[features]
+default = []
+build_risc0 = []
+build_sp1 = []
+
+
+[lib]
+path = "./src/lib.rs"

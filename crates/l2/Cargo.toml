@@ -1,0 +1,50 @@
+[package]
+name = "reec-l2"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+reqwest.workspace = true
+tokio.workspace = true
+tokio-util.workspace = true
+tracing.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+ethereum-types.workspace = true
+reec-core.workspace = true
+reec-rlp.workspace = true
+reec-rpc.workspace = true
+reec-blockchain.workspace = true
+reec-storage.workspace = true
+reec-vm.workspace = true
+reec-dev = { path = "../../crates/blockchain/dev" }
+hex.workspace = true
+bytes.workspace = true
+jsonwebtoken.workspace = true
+secp256k1.workspace = true
+keccak-hash = "0.10.0"
+envy = "0.4.2"
+thiserror.workspace = true
+zkvm_interface = { path = "./prover/zkvm/interface/", default-features = false }
+# risc0
+risc0-zkvm = { version = "1.2.0" }
+# sp1
+sp1-sdk = { version = "3.4.0" }
+
+[dev-dependencies]
+reec-sdk = { path = "./sdk" }
+rand = "0.8.5"
+
+
+[lib]
+path = "./l2.rs"
+
+[lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+indexing_slicing = "deny"
+as_conversions = "deny"
+unnecessary_cast = "warn"
+panic = "deny"

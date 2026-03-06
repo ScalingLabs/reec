@@ -3,11 +3,35 @@ name = "reec-blockchain"
 version = "0.1.0"
 edition = "2021"
 
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
 [dependencies]
 thiserror.workspace = true
-reec-core.workspace = true
-reec-storage.workspace = true
-reec-evm.workspace = true
+sha3.workspace = true
+tracing.workspace = true
+bytes.workspace = true
+cfg-if = "1.0.0"
+
+reec-rlp.workspace = true
+reec-core = { path = "../common", default-features = false }
+reec-storage = { path = "../storage/store", default-features = false }
+reec-vm = { path = "../vm", default-features = false }
+
+k256 = { version = "0.13.3", features = ["ecdh"] }
+
+[dev-dependencies]
+serde_json.workspace = true
+hex = "0.4.3"
 
 [lib]
 path = "./blockchain.rs"
+
+[features]
+default = ["c-kzg"]
+levm = ["default", "reec-vm/levm"]
+libmdbx = [
+    "reec-core/libmdbx",
+    "reec-storage/default",
+    "reec-vm/libmdbx",
+]
+c-kzg =["reec-core/c-kzg"]

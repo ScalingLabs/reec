@@ -1,0 +1,4 @@
+*.tar.gz
+
+tests/ef/tests
+tmp/

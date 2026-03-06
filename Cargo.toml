@@ -1,40 +1,72 @@
 [workspace]
 members = [
     "crates/blockchain",
-    "crates/core",
-    "crates/net", 
-    "crates/rpc",
-    "crates/storage",
-    "crates/evm",
-    "cmd/reec", 
-    "cmd/ef_tests",
+    "crates/blockchain/dev",
+    "crates/common",
+    "crates/networking/p2p",
+    "crates/networking/rpc",
+    "crates/storage/store",
+    "crates/vm",
+    "crates/storage/trie",
+    "crates/common/rlp",
+    "cmd/reec",
+    "cmd/ef_tests/reec",
+    "cmd/ef_tests/levm",
+    "cmd/reec_l2",
+    "cmd/hive_report",
+    "crates/vm/levm",
+    "crates/vm/levm/bench/revm_comparison",
+    "crates/l2/",
+    "crates/l2/prover",
+    "crates/l2/contracts",
+    "crates/l2/sdk",
+    "cmd/loc",
 ]
 resolver = "2"
-default-members = ["cmd/reec"]
+
+default-members = ["cmd/reec", "cmd/reec_l2", "crates/l2/prover", "cmd/loc"]
 
 [workspace.package]
 version = "0.1.0"
 edition = "2021"
 
 [workspace.dependencies]
-reec-blockchain = { path = "./crates/blockchain"}
-reec-core = { path = "./crates/core" }
-reec-net = { path = "./crates/net" }
-reec-rpc = { path = "./crates/rpc" }
-reec-storage = { path = "./crates/storage" }
-reec-evm = { path = "./crates/evm" }
+reec-blockchain = { path = "./crates/blockchain" }
+reec-core = { path = "./crates/common" }
+reec-net = { path = "./crates/networking/p2p" }
+reec-rpc = { path = "./crates/networking/rpc" }
+reec-storage = { path = "./crates/storage/store" }
+reec-vm = { path = "./crates/vm" }
+reec-trie = { path = "./crates/storage/trie" }
+reec-rlp = { path = "./crates/common/rlp" }
+reec-l2 = { path = "./crates/l2" }
+reec-prover = { path = "./crates/l2/prover" }
 
-ethereum-types = "0.14.1"
 tracing = { version = "0.1", features = ["log"] }
-tracing-subscriber = "0.3.0"
-serde = {version = "1.0.203", features = ["derive"]}
+tracing-subscriber = { version = "0.3.0", features = ["env-filter"] }
+
+ethereum-types = { version = "0.14.1", features = ["serialize"] }
+serde = { version = "1.0.203", features = ["derive"] }
 serde_json = "1.0.117"
-libmdbx = { version = "0.4.0", features = ["orm"] }
+libmdbx = { version = "0.5.0", features = ["orm"] }
 bytes = { version = "1.6.0", features = ["serde"] }
-tokio = { version = "1.38.0", features = ["full"] }
+tokio = { version = "1.41.1", features = ["full"] }
 thiserror = "1.0.61"
 hex = "0.4.3"
 hex-literal = "0.4.1"
+crc32fast = "1.4.2"
 lazy_static = "1.5.0"
 sha3 = "0.10.8"
-
+tokio-util = { version = "0.7.12", features = ["rt"] }
+jsonwebtoken = "9.3.0"
+rand = "0.8.5"
+cfg-if = "1.0.0"
+reqwest = { version = "0.12.7", features = ["json"] }
+redb = "2.2.0"
+snap = "1.1.1"
+k256 = { version = "0.13.3", features = ["ecdh"] }
+secp256k1 = { version = "0.29", default-features = false, features = [
+    "global-context",
+    "recovery",
+    "rand",
+] }
